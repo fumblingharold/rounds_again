@@ -22,28 +22,25 @@
 use bevy::window::PrimaryWindow;
 use bevy::{color::palettes::tailwind, prelude::*};
 use bevy_rapier2d::prelude::*;
+use parry2d::shape::Cuboid;
 
-// Character is 2 colliders
-// One is the main collider: it's the visible character circle
-// One is for floor stuff: it's a square with width < the main collider's radius
-// Each tick, the floor collider is teleported into the main collider and tries to move into its
-// proper position below. The floor and main colliders can't collide.
-// Physics is then done and the floor collider may collide with the floor.
-// Use the vertical difference between the floor and main colliders to apply a small force
-// (constant until correct) to the main collider. Ignore any horizontal differences.
-// If the floor collider is grounded, the main collider shouldn't have gravity applied.
-// Need to figure out what the condiditon is for returning jump stock.
+/// How many pixels per Rapier meter.
+const PIXELS_PER_METER: f32 = 200.;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugins(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(200.0).in_fixed_schedule())
+        .add_plugins(
+            RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(PIXELS_PER_METER)
+                .in_fixed_schedule(),
+        )
         .add_plugins(RapierDebugRenderPlugin {
             default_collider_debug: ColliderDebug::AlwaysRender,
             enabled: true,
             style: DebugRenderStyle::default(),
             mode: DebugRenderMode::all(),
         })
+        .add_plugins(bevy_mod_debugdump::CommandLineArgs)
         .init_resource::<DidFixedTimestepRunThisFrame>()
         .add_systems(
             Startup,
@@ -59,20 +56,18 @@ fn main() {
         // At the beginning of each frame, clear the flag that indicates whether the fixed timestep has run this frame.
         .add_systems(PreUpdate, clear_fixed_timestep_flag)
         // At the beginning of each fixed timestep, set the flag that indicates whether the fixed timestep has run this frame.
-        .add_systems(
-            FixedPreUpdate,
-            (set_fixed_time_step_flag, update_player).chain(),
-        )
+        .add_systems(FixedPreUpdate, set_fixed_time_step_flag)
         // Advance the physics simulation using a fixed timestep.
-        // .add_systems(FixedUpdate, )
+        .add_systems(
+            FixedUpdate,
+            (
+                prepare_players.before(PhysicsSet::SyncBackend),
+                update_players.after(PhysicsSet::Writeback),
+            ),
+        )
         .add_systems(
             FixedPostUpdate,
-            (
-                handle_player_hit,
-                handle_bullet_collision,
-                update_player_from_output,
-            )
-                .chain(),
+            (handle_player_hit, handle_bullet_collision).chain(),
         )
         .add_systems(
             // The `RunFixedMainLoop` schedule allows us to schedule systems to run before and after the fixed timestep loop.
@@ -183,7 +178,7 @@ fn setup_walls(
 }
 
 /// Sets up all physics objects (Dynamic RigidBodies).
-/// For now, this is just a circle.
+/// For now, this is just a few circles.
 fn setup_phys_objects(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -191,16 +186,16 @@ fn setup_phys_objects(
 ) {
     let ball_material = materials.add(Color::from(tailwind::AMBER_500));
     let ball_mesh = meshes.add(Circle::new(50.0));
-    commands.spawn((
-        Name::new("Ball"),
-        Mesh2d(ball_mesh),
-        MeshMaterial2d(ball_material),
-        RigidBody::Dynamic,
-        Collider::ball(50.),
-        Restitution::coefficient(0.7),
-        Transform::from_xyz(0., 400., 0.),
-        //ColliderMassProperties::Density(200.),
-    ));
+    for _ in 0..3 {
+        commands
+            .spawn(Name::new("Ball"))
+            .insert(Mesh2d(ball_mesh.clone()))
+            .insert(MeshMaterial2d(ball_material.clone()))
+            .insert(RigidBody::Dynamic)
+            .insert(Collider::ball(50.))
+            .insert(Restitution::coefficient(0.7))
+            .insert(Transform::from_xyz(0., 400., 0.));
+    }
 }
 
 /// Sets up the camera. Parameters are just left as default for now.
@@ -234,8 +229,10 @@ impl Ability {
                     self.stock -= 1;
                     if self.use_time > 0 {
                         (State::InUse(self.use_time - 1), true)
+                    } else if self.cooldown_time > 0 {
+                        (State::Cooldown(self.cooldown_time - 1), true)
                     } else {
-                        (State::Cooldown(self.cooldown_time), true)
+                        (State::Ready, true)
                     }
                 } else {
                     (State::Ready, false)
@@ -287,7 +284,7 @@ impl Default for Abilities {
             jump: Ability {
                 state: State::Ready,
                 stock: 1,
-                use_time: 15,
+                use_time: 5,
                 cooldown_time: 0,
             },
             shoot: Ability {
@@ -320,9 +317,8 @@ struct Radius(f32);
 #[derive(Debug, Component, Default)]
 struct Velocity2(Vect);
 
-/// Whether player is grounded.
 #[derive(Debug, Component, Default)]
-struct Grounded(bool);
+struct Counter(u64);
 
 const HP_BAR_SCALE: Vec2 = Vec2::new(0.9, 1. / 15.);
 
@@ -335,12 +331,10 @@ fn setup_player(
     let player_radius = 25.;
     let body_mesh = meshes.add(Circle::new(player_radius));
     let body_material = materials.add(Color::from(tailwind::PINK_100));
-    let friction = Friction {
-        coefficient: 0.0,
-        combine_rule: CoefficientCombineRule::Min,
-    };
     let controller = KinematicCharacterController {
-        offset: CharacterLength::Relative(0.05),
+        //offset: CharacterLength::Relative(0.05),
+        //filter_groups: Some(collision_groups),
+        // normal_nudge_factor: 0.5,
         ..default()
     };
     let bar_mesh = meshes.add(Rectangle::new(
@@ -350,22 +344,27 @@ fn setup_player(
 
     commands
         .spawn(Player)
+        .insert(Counter(0))
         .insert(Name::new("Player"))
-        .insert(Hp(100.))
+        .insert(Hp(55.))
         .insert(Transform::default())
         .insert(AccumulatedInput::default())
         .insert(Velocity2::default())
-        .insert(Grounded::default())
         .insert(Abilities::default())
         .insert(Radius(player_radius))
-        .insert(Mesh2d(body_mesh))
-        .insert(MeshMaterial2d(body_material))
-        .insert(RigidBody::KinematicPositionBased)
         .insert(Collider::ball(25.))
-        .insert(CollidingEntities::default())
+        .insert(Sleeping::disabled())
+        .insert(LockedAxes::ROTATION_LOCKED)
+        // .insert(CollidingEntities::default())
+        // .insert(collision_groups)
         // .insert(friction)
         .insert(controller)
+        .insert(KinematicCharacterControllerOutput::default())
         .with_children(|parent| {
+            parent.spawn(RigidBody::KinematicPositionBased);
+            parent
+                .spawn(Mesh2d(body_mesh))
+                .insert(MeshMaterial2d(body_material));
             let green_bar_material = materials.add(Color::from(tailwind::GREEN_500));
             parent
                 .spawn(HpBarGreen)
@@ -398,20 +397,19 @@ fn setup_bullet(
     commands: &mut Commands,
     player_position: Vec3,
     radius: f32,
-    player_velocity: Vect,
     direction: Vec2,
     materials: &mut Assets<ColorMaterial>,
     meshes: &mut Assets<Mesh>,
 ) {
     let position = player_position + direction.extend(0.0) * (radius + 15.);
-    let velocity = direction * 800.0 + player_velocity;
+    let velocity = direction * 800.0;
     let body_material = materials.add(Color::from(tailwind::PINK_100));
     let body_mesh = meshes.add(Capsule2d::new(5., 10.));
 
     commands
         .spawn(Bullet)
-        .insert(Bounces(4))
-        .insert(Damage(10.))
+        .insert(Bounces(5))
+        .insert(Damage(25.))
         .insert(GravityScale(0.5))
         .insert(Transform::from_translation(position))
         .insert(Mesh2d(body_mesh))
@@ -464,10 +462,10 @@ fn update_input(
     mouse_input: Res<ButtonInput<MouseButton>>,
     window: Single<&Window, With<PrimaryWindow>>,
     camera: Single<(&Camera, &GlobalTransform)>,
-    player: Query<(&mut AccumulatedInput, &Transform)>,
+    player: Query<&mut AccumulatedInput>,
 ) {
     let (camera, camera_transform) = camera.into_inner();
-    for (mut input, position) in player {
+    for mut input in player {
         // Reset the input to zero before reading the new input. As mentioned above, we can only do this
         // because this is continuously pressed by the user. Do not reset e.g. whether the user wants to boost.
         input.movement = 0.;
@@ -523,29 +521,8 @@ fn clear_input(mut input: Single<&mut AccumulatedInput>) {
     **input = AccumulatedInput::default();
 }
 
-///
-fn update_player_from_output(
-    mut players: Query<
-        (
-            &KinematicCharacterControllerOutput,
-            &mut Velocity2,
-            &mut Grounded,
-        ),
-        With<Player>,
-    >,
-    fixed_time: Res<Time<Fixed>>,
-) {
-    for (controller_output, mut velocity, mut grounded) in players.iter_mut() {
-        grounded.0 = controller_output.grounded;
-        velocity.0 = controller_output.effective_translation / fixed_time.delta_secs();
-    }
-}
-
-/// Advance the physics simulation by one fixed timestep. This may run zero or multiple times per frame.
-///
-/// Note that since this runs in `FixedUpdate`, `Res<Time>` would be `Res<Time<Fixed>>` automatically.
-/// We are being explicit here for clarity.
-fn update_player(
+/// Prepare all players for the physics update.
+fn prepare_players(
     mut commands: Commands,
     materials: ResMut<Assets<ColorMaterial>>,
     meshes: ResMut<Assets<Mesh>>,
@@ -553,26 +530,19 @@ fn update_player(
     mut players: Query<
         (
             &mut KinematicCharacterController,
-            &Grounded,
+            &AccumulatedInput,
+            &mut Velocity2,
+            &mut Abilities,
             &Transform,
             &Radius,
-            &mut Velocity2,
-            &AccumulatedInput,
-            &mut Abilities,
         ),
         With<Player>,
     >,
 ) {
     let materials = materials.into_inner();
     let meshes = meshes.into_inner();
-    for (mut controller, grounded, position, radius, mut velocity, input, mut abilities) in
-        players.iter_mut()
+    for (mut controller, input, mut velocity, mut abilities, position, radius) in players.iter_mut()
     {
-        if grounded.0 {
-            abilities.jump.stock = 1;
-        }
-        velocity.0.y *= 0.995;
-        velocity.0.y -= 9.8 * 200. * fixed_time.delta_secs();
         if input.movement.abs() == 0.0 || input.movement.signum() != velocity.0.x.signum() {
             velocity.0.x *= 0.8;
         }
@@ -591,13 +561,80 @@ fn update_player(
                 &mut commands,
                 position.translation,
                 radius.0,
-                velocity.0,
                 direction,
                 materials,
                 meshes,
             );
         }
+
         controller.translation = Some(velocity.0 * fixed_time.delta_secs());
+    }
+}
+
+/// Update the player after the physics update.
+fn update_players(
+    fixed_time: Res<Time<Fixed>>,
+    rapier_context: ReadRapierContext,
+    mut players: Query<
+        (
+            Entity,
+            &KinematicCharacterControllerOutput,
+            &Radius,
+            &mut Counter,
+            &mut Velocity2,
+            &mut Abilities,
+            &Transform,
+        ),
+        With<Player>,
+    >,
+) {
+    let rapier_context = rapier_context.single().unwrap();
+    for (entity, controller_output, radius, mut counter, mut velocity, mut abilities, position) in
+        players.iter_mut()
+    {
+        let cast_distance = radius.0;
+        let cast_half_width = radius.0 * f32::sqrt(2.) / 2.;
+        let sitting_distance = radius.0 * 4. / 5.;
+        counter.0 += 1;
+        velocity.0.y *= 0.995;
+        velocity.0 = controller_output.effective_translation / fixed_time.delta_secs();
+
+        let hit = rapier_context.cast_shape(
+            position.translation.truncate(),
+            0.,
+            Vect::new(0., -cast_distance),
+            &Cuboid::new([cast_half_width, cast_half_width].into()),
+            ShapeCastOptions::with_max_time_of_impact(1.),
+            QueryFilter {
+                groups: None,
+                exclude_collider: Some(entity),
+                ..default()
+            },
+        );
+
+        const LEG_STRENGTH: f32 = 5.;
+
+        if let Some((_entity, shape_cast)) = hit
+            && velocity.0.y < 20.
+        {
+            abilities.jump.stock = 1;
+
+            velocity.0.y *= 0.8;
+
+            let distance = shape_cast.time_of_impact * cast_distance;
+            let difference = sitting_distance - distance;
+            velocity.0.y += difference
+                * LEG_STRENGTH
+                * if f32::is_sign_negative(difference) {
+                    1.
+                } else {
+                    2.
+                };
+
+            println!("velocity: {}", distance);
+        } else {
+            velocity.0.y -= 9.8 * PIXELS_PER_METER * fixed_time.delta_secs();
+        }
     }
 }
 
