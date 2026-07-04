@@ -403,7 +403,7 @@ fn setup_bullet(
     let position = player_position + direction.extend(0.0) * (radius + 15.);
     let velocity = direction * 800.0;
     let body_material = materials.add(Color::from(tailwind::PINK_100));
-    let body_mesh = meshes.add(Capsule2d::new(5., 10.));
+    let body_mesh = meshes.add(Circle::new(5.));
 
     commands
         .spawn(Bullet)
@@ -415,7 +415,7 @@ fn setup_bullet(
         .insert(MeshMaterial2d(body_material))
         .insert(RigidBody::Dynamic)
         .insert(Velocity::linear(velocity))
-        .insert(Collider::capsule_y(5., 5.))
+        .insert(Collider::ball(5.))
         .insert(LockedAxes::ROTATION_LOCKED)
         .insert(Friction {
             coefficient: 0.0,
