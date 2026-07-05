@@ -10,6 +10,9 @@ pub struct Bounces(pub u8);
 #[derive(Debug, Component, Clone, Copy, PartialEq, Default)]
 pub struct Damage(pub f32);
 
+#[derive(Debug, Component, Clone, Copy, PartialEq, Default)]
+pub struct Source(u8);
+
 /// Sets up a new bullet.
 pub fn setup_bullet(
     commands: &mut Commands,
@@ -28,6 +31,8 @@ pub fn setup_bullet(
         .spawn(Bullet)
         .insert(Bounces(5))
         .insert(Damage(25.))
+        // TODO make this actually reflect the player shooting
+        .insert(Source(0))
         .insert(GravityScale(0.5))
         .insert(Transform::from_translation(position))
         .insert(Mesh2d(body_mesh))

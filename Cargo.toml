@@ -13,6 +13,7 @@ bevy_rapier2d = {  version = "0.34.0",
 }
 parry2d = "0.26.1"
 bevy_mod_debugdump = "0.15.0"
+arrayvec = "0.7.8"
 
 [profile.release]
 codegen-units = 1

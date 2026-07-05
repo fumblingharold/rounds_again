@@ -12,6 +12,7 @@ use bevy_rapier2d::prelude::*;
 use bullet::*;
 use phys_object::*;
 use player::*;
+use shared::*;
 use wall::setup_walls;
 
 const PIXELS_PER_METER: f32 = 200.;
@@ -58,7 +59,11 @@ impl Plugin for GamePlugin {
             FixedPostUpdate,
             run_in_game(
                 (
-                    (handle_player_hit, handle_phys_object_hit, handle_bullet_hit),
+                    (
+                        (handle_player_hit, handle_player_damage).chain(),
+                        handle_phys_object_hit,
+                        handle_bullet_hit,
+                    ),
                     (kill_bullets, kill_players, kill_phys_objects),
                 )
                     .chain(),

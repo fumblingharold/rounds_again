@@ -1,6 +1,6 @@
-use super::{PIXELS_PER_METER, setup_bullet, shared::Hp};
+use super::{Bullet, Damage, Hp, PIXELS_PER_METER, Source, setup_bullet};
 use crate::AppState;
-use crate::game_state::bullet::{Bullet, Damage};
+use arrayvec::ArrayVec;
 use bevy::{color::palettes::tailwind, prelude::*};
 use bevy_rapier2d::prelude::*;
 use parry2d::shape::Cuboid;
@@ -127,6 +127,13 @@ impl Default for Abilities {
 #[derive(Debug, Component, Default)]
 pub struct Player;
 
+/// The last player to hit this player.
+#[derive(Debug, Component, Default)]
+pub struct LastHit(u8);
+
+#[derive(Debug, Component)]
+pub struct DamageTakenThisTick(ArrayVec<f32, 255>);
+
 #[derive(Debug, Component, Default)]
 pub struct HpBarGreen;
 
@@ -172,6 +179,8 @@ pub fn setup_player(
         .insert(Name::new("Player"))
         .insert(Hp::new(55.))
         .insert(Transform::default())
+        .insert(LastHit(0))
+        .insert(DamageTakenThisTick(ArrayVec::from_iter(Some(0f32))))
         .insert(AccumulatedInput::default())
         .insert(Velocity2::default())
         .insert(Abilities::default())
@@ -398,12 +407,11 @@ pub fn update_players(
 }
 
 /// Updates players based on bullet collisions.
-/// For now, just updates Hp based on bullet damage. Also adjusts the HP bar.
+/// Adds damage to the player in [`DamageTakenThisTick`].
 pub fn handle_player_hit(
     mut collision_events: MessageReader<CollisionEvent>,
-    mut player_query: Query<(&mut Hp, &Children, &Radius), With<Player>>,
-    bullet_query: Query<&Damage, With<Bullet>>,
-    mut hp_bar_query: Query<&mut Transform, With<HpBarGreen>>,
+    mut player_query: Query<&mut DamageTakenThisTick, With<Player>>,
+    bullet_query: Query<(&Damage, &Source), With<Bullet>>,
 ) {
     for event in collision_events.read() {
         let (&left, &right, _flags) = match event {
@@ -412,22 +420,67 @@ pub fn handle_player_hit(
         };
 
         let mut handle_collision = |player, bullet| {
-            if let Ok((mut hp, children, radius)) = player_query.get_mut(player)
-                && let Ok(damage) = bullet_query.get(bullet)
+            if let Ok(mut damage_taken_this_tick) = player_query.get_mut(player)
+                && let Ok((damage, source)) = bullet_query.get(bullet)
             {
-                hp.decrement(damage.0);
-                for entity in children.iter() {
-                    if let Ok(mut transform) = hp_bar_query.get_mut(entity) {
-                        let scale = hp.hp / 100.;
-                        transform.scale.x = scale;
-                        transform.translation.x = (1. - scale) * radius.0 * -HP_BAR_SCALE.x;
-                    }
-                }
+                // TODO apply damage where it should actually be applied
+                damage_taken_this_tick.0[0] += damage.0;
             }
         };
 
         handle_collision(left, right);
         handle_collision(right, left);
+    }
+}
+
+/// Applies accumulated damage from the tick.
+///
+/// Also updates the health bar.
+pub fn handle_player_damage(
+    mut player_query: Query<
+        (
+            Entity,
+            &mut DamageTakenThisTick,
+            &mut Hp,
+            &mut LastHit,
+            &Children,
+            &Radius,
+        ),
+        With<Player>,
+    >,
+    mut hp_bar_query: Query<&mut Transform, With<HpBarGreen>>,
+) {
+    // TODO need to remove damage from this player from max calculation
+    for (entity, mut damage_this_tick, mut hp, mut last_hit, children, radius) in
+        player_query.iter_mut()
+    {
+        let damage_from_player0 = damage_this_tick.0[0];
+        hp.decrement(damage_from_player0);
+        let (max_idx, max) = damage_this_tick.0.iter_mut().enumerate().skip(1).fold(
+            (0, damage_from_player0),
+            |(max_idx, max), (val_idx, val)| {
+                let saved_val = *val;
+                hp.decrement(saved_val);
+                if saved_val > max {
+                    (val_idx, saved_val)
+                } else {
+                    (max_idx, max)
+                }
+            },
+        );
+        damage_this_tick.0.fill(0.);
+        // Update last_hit if a player got a hit
+        if max > 0. {
+            last_hit.0 = max_idx as u8;
+        }
+
+        for entity in children.iter() {
+            if let Ok(mut transform) = hp_bar_query.get_mut(entity) {
+                let scale = hp.hp / 100.;
+                transform.scale.x = scale;
+                transform.translation.x = (1. - scale) * radius.0 * -HP_BAR_SCALE.x;
+            }
+        }
     }
 }
 
