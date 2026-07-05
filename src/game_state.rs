@@ -4,6 +4,9 @@ mod player;
 mod shared;
 mod wall;
 
+use crate::AppState;
+use bevy::ecs::schedule::ScheduleConfigs;
+use bevy::ecs::system::ScheduleSystem;
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 use bullet::*;
@@ -14,6 +17,13 @@ use wall::setup_walls;
 const PIXELS_PER_METER: f32 = 200.;
 
 pub struct GamePlugin;
+
+/// Converts the given system into one that runs in state [`AppState::Game`].
+fn run_in_game<M>(
+    systems: impl IntoScheduleConfigs<ScheduleSystem, M>,
+) -> ScheduleConfigs<ScheduleSystem> {
+    systems.run_if(in_state(AppState::Game))
+}
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
@@ -30,34 +40,34 @@ impl Plugin for GamePlugin {
         .init_resource::<DidFixedTimestepRunThisFrame>()
         .add_message::<BulletKillMessage>()
         .add_systems(Startup, (setup_walls, setup_phys_objects, setup_player))
+        .add_systems(OnExit(AppState::Game), pause_physics)
+        .add_systems(OnEnter(AppState::Game), resume_physics)
         // At the beginning of each frame, clear the flag that indicates whether the fixed timestep has run this frame.
-        .add_systems(PreUpdate, clear_fixed_timestep_flag)
+        .add_systems(PreUpdate, run_in_game(clear_fixed_timestep_flag))
         // At the beginning of each fixed timestep, set the flag that indicates whether the fixed timestep has run this frame.
-        .add_systems(FixedPreUpdate, set_fixed_time_step_flag)
+        .add_systems(FixedPreUpdate, run_in_game(set_fixed_time_step_flag))
         // Advance the physics simulation using a fixed timestep.
         .add_systems(
             FixedUpdate,
-            (
+            run_in_game((
                 prepare_players.before(PhysicsSet::SyncBackend),
                 update_players.after(PhysicsSet::Writeback),
-            ),
+            )),
         )
         .add_systems(
             FixedPostUpdate,
-            (
+            run_in_game(
                 (
-                    handle_player_hit,
-                    handle_phys_object_hit,
-                    handle_bullet_collision,
-                ),
-                (kill_bullets, kill_players, kill_phys_objects),
-            )
-                .chain(),
+                    (handle_player_hit, handle_phys_object_hit, handle_bullet_hit),
+                    (kill_bullets, kill_players, kill_phys_objects),
+                )
+                    .chain(),
+            ),
         )
         .add_systems(
             // The `RunFixedMainLoop` schedule allows us to schedule systems to run before and after the fixed timestep loop.
             RunFixedMainLoop,
-            (
+            run_in_game((
                 (
                     // Accumulate our input before the fixed timestep loop to tell the physics simulation what it should do during the fixed timestep.
                     update_input,
@@ -75,7 +85,17 @@ impl Plugin for GamePlugin {
                 )
                     .chain()
                     .in_set(RunFixedMainLoopSystems::AfterFixedMainLoop),
-            ),
+            )),
         );
     }
+}
+
+/// Pauses rapier game physics.
+fn pause_physics(mut config: Single<&mut RapierConfiguration>) {
+    config.physics_pipeline_active = false;
+}
+
+/// Resumes rapier game physics.
+fn resume_physics(mut config: Single<&mut RapierConfiguration>) {
+    config.physics_pipeline_active = true;
 }

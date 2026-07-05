@@ -53,7 +53,7 @@ pub struct BulletKillMessage(pub Entity);
 
 /// Updates all bullets based on their collisions.
 /// Decrements bounces on hit and adds a BulletKillMessage when bounces run out.
-pub fn handle_bullet_collision(
+pub fn handle_bullet_hit(
     mut collision_events: MessageReader<CollisionEvent>,
     mut kill_bullet_events: MessageWriter<BulletKillMessage>,
     mut query: Query<&mut Bounces, With<Bullet>>,

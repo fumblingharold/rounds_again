@@ -20,6 +20,7 @@
 //! for a nice overview of the different methods and their respective tradeoffs.
 
 mod game_state;
+mod pause_state;
 
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
@@ -30,6 +31,7 @@ pub fn run_app() {
         .add_plugins(DefaultPlugins)
         .add_plugins(bevy_mod_debugdump::CommandLineArgs)
         .add_plugins(game_state::GamePlugin)
+        .add_plugins(pause_state::PausePlugin)
         .init_state::<AppState>()
         .add_systems(Startup, (set_size_window, setup_camera))
         .run();
@@ -38,9 +40,11 @@ pub fn run_app() {
 /// The different states the app can be in.
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, States)]
 enum AppState {
-    /// The state for actually playing the game.
+    /// The actual game.
     #[default]
     Game,
+    /// Game is paused.
+    Pause,
 }
 
 /// Sets the window size to 1920x1080. This seems to have trouble on Mac, but needs to be rewritten so it scales

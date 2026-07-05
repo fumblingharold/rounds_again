@@ -1,4 +1,5 @@
 use super::{PIXELS_PER_METER, setup_bullet, shared::Hp};
+use crate::AppState;
 use crate::game_state::bullet::{Bullet, Damage};
 use bevy::{color::palettes::tailwind, prelude::*};
 use bevy_rapier2d::prelude::*;
@@ -220,6 +221,7 @@ pub fn update_input(
     window: Single<&Window, With<bevy::window::PrimaryWindow>>,
     camera: Single<(&Camera, &GlobalTransform)>,
     player: Query<&mut AccumulatedInput>,
+    mut next_state: ResMut<NextState<AppState>>,
 ) {
     let (camera, camera_transform) = camera.into_inner();
     for mut input in player {
@@ -234,6 +236,9 @@ pub fn update_input(
         }
         if keyboard_input.pressed(KeyCode::Space) {
             input.jump = true;
+        }
+        if keyboard_input.pressed(KeyCode::Escape) {
+            next_state.set(AppState::Pause)
         }
         if let Some(ray) = window
             .cursor_position()
