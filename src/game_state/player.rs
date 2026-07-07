@@ -1,221 +1,13 @@
-use super::{Bullet, Damage, Hp, PIXELS_PER_METER, Source, setup_bullet};
+use super::{Bullet, Damage, PIXELS_PER_METER, Source, setup_bullet};
 use crate::AppState;
-use arrayvec::ArrayVec;
-use bevy::{color::palettes::tailwind, prelude::*};
+use crate::player::{
+    Abilities, AccumulatedInput, Counter, DamageTakenThisTick, HpBarGreen, Input, LastHit, Player,
+    Radius, SPEED, Velocity2,
+};
+use crate::shared::Hp;
+use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 use parry2d::shape::Cuboid;
-
-/// Speed of the player.
-const SPEED: f32 = 10.;
-
-/// Prints the position and velocity of all players.
-pub fn print_player_info(player: Query<(&Transform, &Velocity2), With<Player>>) {
-    for (transform, velocity) in player.iter() {
-        println!(
-            "Velocity: {} position: {}",
-            velocity.0, transform.translation
-        );
-    }
-}
-
-/// Represents the player's input, accumulated over all frames that ran since the last time the
-/// physics simulation was advanced.
-/// Directionals are replaced with the most recent input while jump, shoot, and block are ANDed.
-#[derive(Debug, Component, Clone, Copy, PartialEq, Default)]
-pub struct AccumulatedInput {
-    // The player's left-right movement input (AD).
-    movement: f32,
-    jump: bool,
-    shoot: Option<Vec2>,
-    block: bool,
-}
-
-/// The state of an ability.
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum State {
-    Cooldown(u16),
-    Ready,
-    InUse(u16),
-}
-
-/// Some ability.
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct Ability {
-    state: State,
-    stock: u16,
-    use_time: u16,
-    cooldown_time: u16,
-}
-
-impl Ability {
-    /// Updates the ability's cooldowns and such. Returns whether to apply the effect of the ability.
-    fn tick(&mut self, use_ability: bool) -> bool {
-        let (new_state, success) = match self.state {
-            State::Ready => {
-                if use_ability && self.stock > 0 {
-                    self.stock -= 1;
-                    if self.use_time > 0 {
-                        (State::InUse(self.use_time - 1), true)
-                    } else if self.cooldown_time > 0 {
-                        (State::Cooldown(self.cooldown_time - 1), true)
-                    } else {
-                        (State::Ready, true)
-                    }
-                } else {
-                    (State::Ready, false)
-                }
-            }
-            State::InUse(timer) => {
-                if timer > 0 && use_ability {
-                    (State::InUse(timer - 1), true)
-                } else {
-                    if self.cooldown_time > 0 {
-                        (State::Cooldown(self.cooldown_time - 1), use_ability)
-                    } else {
-                        (State::Ready, use_ability)
-                    }
-                }
-            }
-            State::Cooldown(timer) => (
-                if timer > 0 {
-                    State::Cooldown(timer - 1)
-                } else {
-                    State::Ready
-                },
-                false,
-            ),
-        };
-        self.state = new_state;
-        success
-    }
-}
-
-/// All the abilities of a player.
-#[derive(Debug, Component, Clone, Copy, PartialEq)]
-pub struct Abilities {
-    jump: Ability,
-    shoot: Ability,
-}
-
-impl Abilities {
-    /// Updates the all the abilities' cooldowns and such. Returns whether to apply the effect of
-    /// each ability.
-    fn tick(&mut self, jump: bool, shoot: bool) -> (bool, bool) {
-        (self.jump.tick(jump), self.shoot.tick(shoot))
-    }
-}
-
-impl Default for Abilities {
-    fn default() -> Self {
-        Self {
-            jump: Ability {
-                state: State::Ready,
-                stock: 1,
-                use_time: 5,
-                cooldown_time: 0,
-            },
-            shoot: Ability {
-                state: State::Ready,
-                stock: 60,
-                use_time: 0,
-                cooldown_time: 60,
-            },
-        }
-    }
-}
-
-#[derive(Debug, Component, Default)]
-pub struct Player;
-
-/// The last player to hit this player.
-#[derive(Debug, Component, Default)]
-pub struct LastHit(u8);
-
-#[derive(Debug, Component)]
-pub struct DamageTakenThisTick(ArrayVec<f32, 255>);
-
-#[derive(Debug, Component, Default)]
-pub struct HpBarGreen;
-
-#[derive(Debug, Component, Default)]
-pub struct HpBarRed;
-
-#[derive(Debug, Component, Default)]
-pub struct Radius(f32);
-
-/// Custom velocity struct. Need to keep track of player velocity but rapier's velocity doesn't seem
-/// to play too nicely?
-#[derive(Debug, Component, Default)]
-pub struct Velocity2(Vect);
-
-#[derive(Debug, Component, Default)]
-pub struct Counter(u64);
-
-const HP_BAR_SCALE: Vec2 = Vec2::new(0.9, 1. / 15.);
-
-/// Sets up a player.
-pub fn setup_player(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-) {
-    let player_radius = 25.;
-    let body_mesh = meshes.add(Circle::new(player_radius));
-    let body_material = materials.add(Color::from(tailwind::PINK_100));
-    let controller = KinematicCharacterController {
-        //offset: CharacterLength::Relative(0.05),
-        //filter_groups: Some(collision_groups),
-        // normal_nudge_factor: 0.5,
-        ..default()
-    };
-    let bar_mesh = meshes.add(Rectangle::new(
-        player_radius * 2. * HP_BAR_SCALE.x,
-        player_radius * 2. * HP_BAR_SCALE.y,
-    ));
-
-    commands
-        .spawn(Player)
-        .insert(Counter(0))
-        .insert(Name::new("Player"))
-        .insert(Hp::new(55.))
-        .insert(Transform::default())
-        .insert(LastHit(0))
-        .insert(DamageTakenThisTick(ArrayVec::from_iter(Some(0f32))))
-        .insert(AccumulatedInput::default())
-        .insert(Velocity2::default())
-        .insert(Abilities::default())
-        .insert(Radius(player_radius))
-        .insert(Collider::ball(25.))
-        .insert(Sleeping::disabled())
-        .insert(LockedAxes::ROTATION_LOCKED)
-        .insert(Visibility::Visible)
-        // .insert(CollidingEntities::default())
-        // .insert(collision_groups)
-        // .insert(friction)
-        .insert(controller)
-        .insert(KinematicCharacterControllerOutput::default())
-        .with_children(|parent| {
-            parent.spawn(RigidBody::KinematicPositionBased);
-            parent
-                .spawn(Mesh2d(body_mesh))
-                .insert(MeshMaterial2d(body_material));
-            let green_bar_material = materials.add(Color::from(tailwind::GREEN_500));
-            parent
-                .spawn(HpBarGreen)
-                .insert(Transform::from_xyz(0., 30., 0.))
-                .insert(Mesh2d(bar_mesh.clone()))
-                .insert(MeshMaterial2d(green_bar_material));
-            let red_bar_material = materials.add(Color::from(tailwind::RED_500));
-            parent
-                .spawn(HpBarRed)
-                .insert(
-                    Transform::from_xyz(player_radius * HP_BAR_SCALE.x, 30., 0.)
-                        * Transform::from_scale(Vec3::new(0.0, 1.0, 0.0)),
-                )
-                .insert(Mesh2d(bar_mesh))
-                .insert(MeshMaterial2d(red_bar_material));
-        });
-}
 
 /// Handle keyboard input and accumulate it in the `AccumulatedInput` component.
 ///
@@ -226,39 +18,81 @@ pub fn setup_player(
 /// was pressed at some point since the last fixed timestep.
 pub fn update_input(
     keyboard_input: Res<ButtonInput<KeyCode>>,
+    controllers: Query<&Gamepad>,
     mouse_input: Res<ButtonInput<MouseButton>>,
     window: Single<&Window, With<bevy::window::PrimaryWindow>>,
     camera: Single<(&Camera, &GlobalTransform)>,
-    player: Query<&mut AccumulatedInput>,
+    players: Query<(&mut AccumulatedInput, &Input, &Transform), With<Player>>,
     mut next_state: ResMut<NextState<AppState>>,
 ) {
     let (camera, camera_transform) = camera.into_inner();
-    for mut input in player {
+    for (mut accumulated_input, input, transform) in players {
         // Reset the input to zero before reading the new input. As mentioned above, we can only do this
         // because this is continuously pressed by the user. Do not reset e.g. whether the user wants to boost.
-        input.movement = 0.;
-        if keyboard_input.pressed(KeyCode::KeyA) {
-            input.movement -= 1.0;
-        }
-        if keyboard_input.pressed(KeyCode::KeyD) {
-            input.movement += 1.0;
-        }
-        if keyboard_input.pressed(KeyCode::Space) {
-            input.jump = true;
-        }
-        if keyboard_input.pressed(KeyCode::Escape) {
-            next_state.set(AppState::Pause)
-        }
-        if let Some(ray) = window
-            .cursor_position()
-            .and_then(|cursor| camera.viewport_to_world(camera_transform, cursor).ok())
-            && mouse_input.pressed(MouseButton::Left)
-        {
-            let pos = ray.origin.truncate();
-            input.shoot = Some(pos);
-        }
-        if mouse_input.pressed(MouseButton::Right) {
-            input.block = true;
+        accumulated_input.movement = 0.;
+        match input {
+            Input::Keyboard => {
+                if keyboard_input.pressed(KeyCode::KeyA) {
+                    accumulated_input.movement -= 1.0;
+                }
+                if keyboard_input.pressed(KeyCode::KeyD) {
+                    accumulated_input.movement += 1.0;
+                }
+                if keyboard_input.pressed(KeyCode::Space) {
+                    accumulated_input.jump = true;
+                }
+                if keyboard_input.pressed(KeyCode::Escape) {
+                    next_state.set(AppState::Pause)
+                }
+                if let Some(ray) = window
+                    .cursor_position()
+                    .and_then(|cursor| camera.viewport_to_world(camera_transform, cursor).ok())
+                    && mouse_input.pressed(MouseButton::Left)
+                {
+                    let pos = ray.origin.truncate();
+                    let direction = (pos - transform.translation.truncate()).normalize_or_zero();
+                    accumulated_input.shoot = Some(direction);
+                }
+                if mouse_input.pressed(MouseButton::Right) {
+                    accumulated_input.block = true;
+                }
+            }
+            Input::Controller(controller_entity) => {
+                if let Ok(controller) = controllers.get(*controller_entity) {
+                    let movement = controller.left_stick().x;
+                    // Apply movement if outside deadzone
+                    // Deadzone is huge since my controller is garbage
+                    // TODO also allow dpad movement
+                    if movement.abs() > 0.15 {
+                        accumulated_input.movement = movement;
+                    }
+                    if controller.pressed(GamepadButton::South) {
+                        accumulated_input.jump = true;
+                    }
+                    if controller.pressed(GamepadButton::Start) {
+                        next_state.set(AppState::Pause)
+                    }
+
+                    // Need to detect digital and analog triggers
+                    if controller.pressed(GamepadButton::RightTrigger2)
+                        || controller
+                            .get(GamepadAxis::RightZ)
+                            .map(|val| val > 0.)
+                            .unwrap_or(false)
+                    {
+                        accumulated_input.shoot =
+                            Some(controller.right_stick().normalize_or_zero());
+                    }
+                    if controller.pressed(GamepadButton::LeftTrigger2)
+                        || controller
+                            .get(GamepadAxis::LeftZ)
+                            .map(|val| val > 0.)
+                            .unwrap_or(false)
+                    {
+                        accumulated_input.block = true;
+                    }
+                }
+            }
         }
     }
 }
@@ -288,8 +122,10 @@ pub fn did_fixed_timestep_run_this_frame(
 }
 
 // Clear the input after it was processed in the fixed timestep.
-pub fn clear_input(mut input: Single<&mut AccumulatedInput>) {
-    **input = AccumulatedInput::default();
+pub fn clear_input(mut inputs: Query<&mut AccumulatedInput>) {
+    for mut input in inputs.iter_mut() {
+        *input = AccumulatedInput::default();
+    }
 }
 
 /// Prepare all players for the physics update.
@@ -326,13 +162,11 @@ pub fn prepare_players(
             velocity.0.y = 500.;
         }
         if shoot {
-            let direction =
-                (input.shoot.unwrap() - position.translation.truncate()).normalize_or_zero();
             setup_bullet(
                 &mut commands,
                 position.translation,
                 radius.0,
-                direction,
+                input.shoot.unwrap(),
                 materials,
                 meshes,
             );
@@ -388,7 +222,7 @@ pub fn update_players(
         if let Some((_entity, shape_cast)) = hit
             && velocity.0.y < 20.
         {
-            abilities.jump.stock = 1;
+            abilities.refill_jump();
             velocity.0.y *= 0.8;
 
             let distance = shape_cast.time_of_impact * cast_distance;
@@ -455,12 +289,12 @@ pub fn handle_player_damage(
         player_query.iter_mut()
     {
         let damage_from_player0 = damage_this_tick.0[0];
-        hp.decrement(damage_from_player0);
+        hp.damage(damage_from_player0);
         let (max_idx, max) = damage_this_tick.0.iter_mut().enumerate().skip(1).fold(
             (0, damage_from_player0),
             |(max_idx, max), (val_idx, val)| {
                 let saved_val = *val;
-                hp.decrement(saved_val);
+                hp.damage(saved_val);
                 if saved_val > max {
                     (val_idx, saved_val)
                 } else {
@@ -478,7 +312,7 @@ pub fn handle_player_damage(
             if let Ok(mut transform) = hp_bar_query.get_mut(entity) {
                 let scale = hp.hp / 100.;
                 transform.scale.x = scale;
-                transform.translation.x = (1. - scale) * radius.0 * -HP_BAR_SCALE.x;
+                transform.translation.x = (1. - scale) * radius.0 * -crate::player::HP_BAR_SCALE.x;
             }
         }
     }

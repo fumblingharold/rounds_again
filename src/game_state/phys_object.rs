@@ -1,5 +1,5 @@
 use super::bullet::{Bullet, Damage};
-use super::shared::Hp;
+use crate::shared::Hp;
 use bevy::{color::palettes::tailwind, prelude::*};
 use bevy_rapier2d::prelude::*;
 
@@ -57,7 +57,7 @@ pub fn handle_phys_object_hit(
             if let Ok(mut hp) = phys_object_query.get_mut(phys_object)
                 && let Ok(damage) = bullet_query.get(bullet)
             {
-                hp.decrement(damage.0);
+                hp.damage(damage.0);
             }
         };
 

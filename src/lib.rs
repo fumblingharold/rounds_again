@@ -20,7 +20,10 @@
 //! for a nice overview of the different methods and their respective tradeoffs.
 
 mod game_state;
+mod lobby_state;
 mod pause_state;
+mod player;
+mod shared;
 
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
@@ -30,6 +33,7 @@ pub fn run_app() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugins(bevy_mod_debugdump::CommandLineArgs)
+        .add_plugins(lobby_state::LobbyPlugin)
         .add_plugins(game_state::GamePlugin)
         .add_plugins(pause_state::PausePlugin)
         .init_state::<AppState>()
@@ -40,8 +44,10 @@ pub fn run_app() {
 /// The different states the app can be in.
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, States)]
 enum AppState {
-    /// The actual game.
+    /// Before game, allows players to join or leave.
     #[default]
+    Lobby,
+    /// The actual game.
     Game,
     /// Game is paused.
     Pause,

@@ -1,7 +1,6 @@
 mod bullet;
 mod phys_object;
 mod player;
-mod shared;
 mod wall;
 
 use crate::AppState;
@@ -12,7 +11,6 @@ use bevy_rapier2d::prelude::*;
 use bullet::*;
 use phys_object::*;
 use player::*;
-use shared::*;
 use wall::setup_walls;
 
 const PIXELS_PER_METER: f32 = 200.;
@@ -40,7 +38,7 @@ impl Plugin for GamePlugin {
         })
         .init_resource::<DidFixedTimestepRunThisFrame>()
         .add_message::<BulletKillMessage>()
-        .add_systems(Startup, (setup_walls, setup_phys_objects, setup_player))
+        .add_systems(Startup, (setup_walls, setup_phys_objects))
         .add_systems(OnExit(AppState::Game), pause_physics)
         .add_systems(OnEnter(AppState::Game), resume_physics)
         // At the beginning of each frame, clear the flag that indicates whether the fixed timestep has run this frame.
