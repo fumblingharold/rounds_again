@@ -1,6 +1,7 @@
 mod bullet;
 mod phys_object;
 mod player;
+mod setup_match;
 mod wall;
 
 use crate::AppState;
@@ -13,7 +14,6 @@ use bevy_rapier2d::prelude::*;
 use bullet::*;
 use phys_object::*;
 use player::*;
-use wall::setup_walls;
 
 const PIXELS_PER_METER: f32 = 200.;
 
@@ -40,9 +40,29 @@ impl Plugin for GamePlugin {
         })
         .init_resource::<DidFixedTimestepRunThisFrame>()
         .add_message::<BulletKillMessage>()
-        .add_systems(Startup, (setup_walls, setup_phys_objects))
         .add_systems(OnExit(AppState::Game), pause_physics)
         .add_systems(OnEnter(AppState::Game), resume_physics)
+        .add_systems(
+            OnTransition {
+                exited: AppState::Lobby,
+                entered: AppState::Game,
+            },
+            setup_match::setup_match,
+        )
+        .add_systems(
+            OnTransition {
+                exited: AppState::CardSelection,
+                entered: AppState::Game,
+            },
+            setup_match::setup_match,
+        )
+        .add_systems(
+            OnTransition {
+                exited: AppState::Game,
+                entered: AppState::CardSelection,
+            },
+            setup_match::cleanup_match,
+        )
         // At the beginning of each frame, clear the flag that indicates whether the fixed timestep has run this frame.
         .add_systems(PreUpdate, run_in_game(clear_fixed_timestep_flag))
         // At the beginning of each fixed timestep, set the flag that indicates whether the fixed timestep has run this frame.

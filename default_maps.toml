@@ -1,0 +1,62 @@
+[[maps]]
+name = "default_map"
+
+[[maps.rect_walls]]
+width = 1920.0
+height = 100.0
+x = 0.0
+y = 490.0
+[[maps.rect_walls]]
+width = 1920.0
+height = 100.0
+x = 0.0
+y = -490.0
+[[maps.rect_walls]]
+width = 100.0
+height = 1080.0
+x = 910.0
+y = 0.0
+[[maps.rect_walls]]
+width = 100.0
+height = 1080.0
+x = -910.0
+y = 0.0
+
+[[maps.circle_phys_objects]]
+radius = 50.0
+x = 0.0
+y = -100.0
+[[maps.circle_phys_objects]]
+radius = 50.0
+x = 0.0
+y = 0.0
+[[maps.circle_phys_objects]]
+radius = 50.0
+x = 0.0
+y = 100.0
+hp = 55.0
+
+[[maps.player_spawn_points]]
+x = -200.0
+y = 0.0
+[[maps.player_spawn_points]]
+x = 200.0
+y = 0.0
+
+
+[[maps]]
+name = "just_floor"
+circle_phys_objects = []
+
+[[maps.rect_walls]]
+width = 1920.0
+height = 100.0
+x = 0.0
+y = -490.0
+
+[[maps.player_spawn_points]]
+x = -200.0
+y = 0.0
+[[maps.player_spawn_points]]
+x = 200.0
+y = 0.0

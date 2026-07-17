@@ -103,11 +103,13 @@ fn update_card_selection(
     let input = players.get_mut(*player).unwrap();
 
     let mut process_input = |select, left, right| {
-        if select {
+        if let Some(selected_idx) = card_selection_data.selected_card
+            && select
+        {
             // Take card
             commands.entity(card_selection_data.ui).despawn();
             let player = card_selection_data.players_left.pop().unwrap();
-            card_selection_data.cards[card_selection_data.selected_card.unwrap() as usize]
+            card_selection_data.cards[selected_idx as usize]
                 .update_player(commands.reborrow(), player);
             if card_selection_data.players_left.is_empty() {
                 next_state.set(AppState::Game);
