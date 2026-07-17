@@ -4,6 +4,8 @@ mod player;
 mod wall;
 
 use crate::AppState;
+use crate::player::Player;
+use crate::shared::Hp;
 use bevy::ecs::schedule::ScheduleConfigs;
 use bevy::ecs::system::ScheduleSystem;
 use bevy::prelude::*;
@@ -63,6 +65,7 @@ impl Plugin for GamePlugin {
                         handle_bullet_hit,
                     ),
                     (kill_bullets, kill_players, kill_phys_objects),
+                    try_end_match,
                 )
                     .chain(),
             ),
@@ -101,4 +104,19 @@ fn pause_physics(mut config: Single<&mut RapierConfiguration>) {
 /// Resumes rapier game physics.
 fn resume_physics(mut config: Single<&mut RapierConfiguration>) {
     config.physics_pipeline_active = true;
+}
+
+/// Ends the match if only one player is alive.
+fn try_end_match(mut next_state: ResMut<NextState<AppState>>, players: Query<&Hp, With<Player>>) {
+    let mut found_one = false;
+    for hp in players {
+        if hp.hp > 0. {
+            if found_one {
+                return;
+            } else {
+                found_one = true;
+            }
+        }
+    }
+    next_state.set(AppState::CardSelection);
 }

@@ -1,3 +1,4 @@
+use crate::shared::{Bounces, Damage, Hp};
 use arrayvec::ArrayVec;
 use bevy::{color::palettes::tailwind, prelude::*};
 use bevy_rapier2d::prelude::*;
@@ -151,8 +152,14 @@ impl Abilities {
         (self.jump.tick(jump), self.shoot.tick(shoot))
     }
 
+    /// Refills jump stock.
     pub fn refill_jump(&mut self) {
         self.jump.stock = self.jump.max_stock;
+    }
+
+    /// Increases max jump stock by 1.
+    pub fn add_jump(&mut self, additional_jumps: u16) {
+        self.jump.max_stock += additional_jumps;
     }
 }
 
@@ -204,6 +211,9 @@ pub struct Velocity2(pub Vect);
 #[derive(Debug, Component, Default)]
 pub struct Counter(pub u64);
 
+#[derive(Debug, Component, Default)]
+pub struct BulletSpeed(pub f32);
+
 pub const HP_BAR_SCALE: Vec2 = Vec2::new(0.9, 1. / 15.);
 
 /// Sets up a player.
@@ -234,7 +244,10 @@ pub fn setup_player(
         .insert(Name::new("Player"))
         .insert(input)
         .insert(player_id)
-        .insert(crate::shared::Hp::new(55.))
+        .insert(Hp::new(55.))
+        .insert(Damage(25.))
+        .insert(BulletSpeed(800.))
+        .insert(Bounces(0))
         .insert(Transform::default())
         .insert(LastHit(0))
         .insert(DamageTakenThisTick(ArrayVec::from_iter(Some(0f32))))

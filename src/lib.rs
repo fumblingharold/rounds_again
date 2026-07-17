@@ -19,6 +19,8 @@
 //! See the [documentation of the lightyear crate](https://cbournhonesque.github.io/lightyear/book/concepts/advanced_replication/visual_interpolation.html)
 //! for a nice overview of the different methods and their respective tradeoffs.
 
+mod card;
+mod card_selection_state;
 mod game_state;
 mod lobby_state;
 mod pause_state;
@@ -34,6 +36,7 @@ pub fn run_app() {
         .add_plugins(DefaultPlugins)
         .add_plugins(bevy_mod_debugdump::CommandLineArgs)
         .add_plugins(lobby_state::LobbyPlugin)
+        .add_plugins(card_selection_state::CardSelectionPlugin)
         .add_plugins(game_state::GamePlugin)
         .add_plugins(pause_state::PausePlugin)
         .init_state::<AppState>()
@@ -47,6 +50,8 @@ enum AppState {
     /// Before game, allows players to join or leave.
     #[default]
     Lobby,
+    /// Lets players select cards.
+    CardSelection,
     /// The actual game.
     Game,
     /// Game is paused.

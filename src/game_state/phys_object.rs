@@ -1,5 +1,5 @@
-use super::bullet::{Bullet, Damage};
-use crate::shared::Hp;
+use super::bullet::Bullet;
+use crate::shared::{Damage, Hp};
 use bevy::{color::palettes::tailwind, prelude::*};
 use bevy_rapier2d::prelude::*;
 

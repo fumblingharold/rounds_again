@@ -29,3 +29,12 @@ impl Hp {
         self.max_hp = self.true_max_hp
     }
 }
+
+#[derive(Debug, Component, Clone, Copy, PartialEq, Default)]
+pub struct Damage(pub f32);
+
+#[derive(Debug, Component, Clone, Copy, PartialEq, Default)]
+pub struct Source(pub u8);
+
+#[derive(Debug, Component, Clone, Copy, PartialEq, Hash, Default)]
+pub struct Bounces(pub u8);

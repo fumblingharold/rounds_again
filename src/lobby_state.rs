@@ -13,6 +13,7 @@ impl Plugin for LobbyPlugin {
     }
 }
 
+/// All the data associated with the lobby.
 #[derive(Resource)]
 struct LobbyData {
     button_entity: Entity,
@@ -124,5 +125,6 @@ fn update_lobby(
 
 /// Cleans up the lobby.
 fn cleanup_lobby(mut commands: Commands, lobby_data: Res<LobbyData>) {
+    // Should also clean up the resource
     commands.entity(lobby_data.button_entity).despawn();
 }

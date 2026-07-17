@@ -1,36 +1,29 @@
+use crate::shared::{Bounces, Damage, Source};
 use bevy::{color::palettes::tailwind, prelude::*};
 use bevy_rapier2d::prelude::*;
 
 #[derive(Debug, Component, Clone, Copy, PartialEq, Hash, Default)]
 pub struct Bullet;
 
-#[derive(Debug, Component, Clone, Copy, PartialEq, Hash, Default)]
-pub struct Bounces(pub u8);
-
-#[derive(Debug, Component, Clone, Copy, PartialEq, Default)]
-pub struct Damage(pub f32);
-
-#[derive(Debug, Component, Clone, Copy, PartialEq, Default)]
-pub struct Source(u8);
-
 /// Sets up a new bullet.
 pub fn setup_bullet(
     commands: &mut Commands,
     player_position: Vec3,
     radius: f32,
-    direction: Vec2,
+    bounces: Bounces,
+    damage: Damage,
+    velocity: Vec2,
     materials: &mut Assets<ColorMaterial>,
     meshes: &mut Assets<Mesh>,
 ) {
-    let position = player_position + direction.extend(0.0) * (radius + 15.);
-    let velocity = direction * 800.0;
+    let position = player_position + velocity.normalize_or_zero().extend(0.0) * (radius + 15.);
     let body_material = materials.add(Color::from(tailwind::PINK_100));
     let body_mesh = meshes.add(Circle::new(5.));
 
     commands
         .spawn(Bullet)
-        .insert(Bounces(5))
-        .insert(Damage(25.))
+        .insert(bounces)
+        .insert(damage)
         // TODO make this actually reflect the player shooting
         .insert(Source(0))
         .insert(GravityScale(0.5))

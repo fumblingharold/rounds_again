@@ -1,10 +1,10 @@
-use super::{Bullet, Damage, PIXELS_PER_METER, Source, setup_bullet};
+use super::{Bullet, PIXELS_PER_METER, setup_bullet};
 use crate::AppState;
 use crate::player::{
-    Abilities, AccumulatedInput, Counter, DamageTakenThisTick, HpBarGreen, Input, LastHit, Player,
-    Radius, SPEED, Velocity2,
+    Abilities, AccumulatedInput, BulletSpeed, Counter, DamageTakenThisTick, HpBarGreen, Input,
+    LastHit, Player, Radius, SPEED, Velocity2,
 };
-use crate::shared::Hp;
+use crate::shared::{Bounces, Damage, Hp, Source};
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 use parry2d::shape::Cuboid;
@@ -138,6 +138,9 @@ pub fn prepare_players(
         (
             &mut KinematicCharacterController,
             &AccumulatedInput,
+            &Damage,
+            &Bounces,
+            &BulletSpeed,
             &mut Velocity2,
             &mut Abilities,
             &Transform,
@@ -148,7 +151,17 @@ pub fn prepare_players(
 ) {
     let materials = materials.into_inner();
     let meshes = meshes.into_inner();
-    for (mut controller, input, mut velocity, mut abilities, position, radius) in players.iter_mut()
+    for (
+        mut controller,
+        input,
+        damage,
+        bounces,
+        bullet_speed,
+        mut velocity,
+        mut abilities,
+        position,
+        radius,
+    ) in players.iter_mut()
     {
         if input.movement.abs() == 0.0 || input.movement.signum() != velocity.0.x.signum() {
             velocity.0.x *= 0.8;
@@ -166,7 +179,9 @@ pub fn prepare_players(
                 &mut commands,
                 position.translation,
                 radius.0,
-                input.shoot.unwrap(),
+                *bounces,
+                *damage,
+                input.shoot.unwrap() * bullet_speed.0,
                 materials,
                 meshes,
             );
@@ -322,7 +337,7 @@ pub fn handle_player_damage(
 pub fn kill_players(mut commands: Commands, players: Query<(Entity, &Hp), With<Player>>) {
     for (entity, hp) in players {
         if hp.hp <= 0. {
-            commands.entity(entity).despawn();
+            // commands.entity(entity).despawn();
         }
     }
 }
