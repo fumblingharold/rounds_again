@@ -214,6 +214,9 @@ pub struct Counter(pub u64);
 #[derive(Debug, Component, Default)]
 pub struct BulletSpeed(pub f32);
 
+#[derive(Debug, Component, Default)]
+pub struct PlayerColor(pub Color);
+
 pub const HP_BAR_SCALE: Vec2 = Vec2::new(0.9, 1. / 15.);
 
 /// Sets up a player.
@@ -222,11 +225,12 @@ pub fn setup_player(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<ColorMaterial>>,
     input: Input,
+    color: Color,
     player_id: PlayerId,
 ) {
     let player_radius = 25.;
     let body_mesh = meshes.add(Circle::new(player_radius));
-    let body_material = materials.add(Color::from(tailwind::PINK_100));
+    let body_material = materials.add(color);
     let controller = KinematicCharacterController {
         //offset: CharacterLength::Relative(0.05),
         //filter_groups: Some(collision_groups),
@@ -244,6 +248,7 @@ pub fn setup_player(
         .insert(Name::new("Player"))
         .insert(input)
         .insert(player_id)
+        .insert(PlayerColor(color))
         .insert(Hp::new(55.))
         .insert(Damage(25.))
         .insert(BulletSpeed(800.))

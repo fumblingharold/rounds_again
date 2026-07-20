@@ -1,5 +1,5 @@
 use super::AppState;
-use crate::player::{Input, Player, PlayerId, PlayerIdGen, setup_player};
+use crate::player::{Input, Player, PlayerColor, PlayerId, PlayerIdGen, setup_player};
 use bevy::prelude::*;
 
 pub struct LobbyPlugin;
@@ -17,6 +17,28 @@ impl Plugin for LobbyPlugin {
 #[derive(Resource)]
 struct LobbyData {
     button_entity: Entity,
+    player_colors: Vec<(Color, bool)>,
+}
+
+impl LobbyData {
+    fn next_player_color(&mut self) -> Color {
+        let (color, in_use) = self
+            .player_colors
+            .iter_mut()
+            .find(|(_, in_use)| !*in_use)
+            .expect("more players than colors");
+        *in_use = true;
+        *color
+    }
+
+    fn reinsert_player_color(&mut self, color: Color) {
+        let (_, in_use) = self
+            .player_colors
+            .iter_mut()
+            .find(|(other_color, _)| color == *other_color)
+            .expect("color not a valid player color");
+        *in_use = false;
+    }
 }
 
 /// Setups up the lobby.
@@ -52,7 +74,19 @@ fn setup_lobby(mut commands: Commands) {
             )],
         ))
         .id();
-    commands.insert_resource(LobbyData { button_entity });
+    let player_colors: Vec<_> = {
+        use bevy::color::palettes::tailwind::*;
+        vec![
+            BLUE_700, GREEN_700, RED_700, CYAN_700, YELLOW_700, PURPLE_700,
+        ]
+    }
+    .into_iter()
+    .map(|color| (Color::from(color), false))
+    .collect();
+    commands.insert_resource(LobbyData {
+        button_entity,
+        player_colors,
+    });
 }
 
 /// Adds/removes players in response to user input.
@@ -62,44 +96,63 @@ fn update_lobby(
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut player_id_gen: ResMut<PlayerIdGen>,
     mut next_state: ResMut<NextState<AppState>>,
+    mut lobby_data: ResMut<LobbyData>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
     controllers: Query<(Entity, &Gamepad)>,
-    players: Query<(Entity, &Input, &PlayerId), With<Player>>,
+    players: Query<(Entity, &Input, &PlayerId, &PlayerColor), With<Player>>,
 ) {
     let get_player_from_input = |matching_input| {
-        players.iter().find_map(|(entity, input, player_id)| {
-            if matching_input == *input {
-                Some((entity, player_id))
-            } else {
-                None
-            }
-        })
+        players
+            .iter()
+            .find_map(|(entity, input, player_id, player_color)| {
+                if matching_input == *input {
+                    Some((entity, player_id, player_color))
+                } else {
+                    None
+                }
+            })
     };
-    let cleanup_matching =
-        |matching_input: Input, player_id_gen: &mut PlayerIdGen, commands: &mut Commands| {
-            if let Some((entity, player_id)) = get_player_from_input(matching_input) {
-                player_id_gen.reinsert(*player_id);
-                commands.entity(entity).despawn();
-            }
-        };
-    let mut try_setup_player =
-        |input: Input, player_id_gen: &mut PlayerIdGen, commands: &mut Commands| {
-            if get_player_from_input(input).is_none() {
-                setup_player(
-                    commands,
-                    &mut meshes,
-                    &mut materials,
-                    input,
-                    player_id_gen.next().expect("Too many players"),
-                );
-            }
-        };
+    let cleanup_matching = |matching_input: Input,
+                            player_id_gen: &mut PlayerIdGen,
+                            commands: &mut Commands,
+                            lobby_data: &mut LobbyData| {
+        if let Some((entity, player_id, player_color)) = get_player_from_input(matching_input) {
+            player_id_gen.reinsert(*player_id);
+            lobby_data.reinsert_player_color(player_color.0);
+            commands.entity(entity).despawn();
+        }
+    };
+    let mut try_setup_player = |input: Input,
+                                player_id_gen: &mut PlayerIdGen,
+                                commands: &mut Commands,
+                                lobby_data: &mut LobbyData| {
+        if get_player_from_input(input).is_none() {
+            setup_player(
+                commands,
+                &mut meshes,
+                &mut materials,
+                input,
+                lobby_data.next_player_color(),
+                player_id_gen.next().expect("Too many players"),
+            );
+        }
+    };
 
     if keyboard_input.just_pressed(KeyCode::Escape) {
-        cleanup_matching(Input::Keyboard, &mut player_id_gen, &mut commands);
+        cleanup_matching(
+            Input::Keyboard,
+            &mut player_id_gen,
+            &mut commands,
+            lobby_data.reborrow().into_inner(),
+        );
     }
     if keyboard_input.just_pressed(KeyCode::Space) {
-        try_setup_player(Input::Keyboard, &mut player_id_gen, &mut commands);
+        try_setup_player(
+            Input::Keyboard,
+            &mut player_id_gen,
+            &mut commands,
+            lobby_data.reborrow().into_inner(),
+        );
     }
     for (controller_entity, controller) in controllers {
         if controller.just_pressed(GamepadButton::East) {
@@ -107,6 +160,7 @@ fn update_lobby(
                 Input::Controller(controller_entity),
                 &mut player_id_gen,
                 &mut commands,
+                lobby_data.reborrow().into_inner(),
             );
         }
         if controller.just_pressed(GamepadButton::South) {
@@ -114,6 +168,7 @@ fn update_lobby(
                 Input::Controller(controller_entity),
                 &mut player_id_gen,
                 &mut commands,
+                lobby_data.reborrow().into_inner(),
             );
         }
     }
