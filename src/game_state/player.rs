@@ -325,7 +325,7 @@ pub fn handle_player_damage(
 
         for entity in children.iter() {
             if let Ok(mut transform) = hp_bar_query.get_mut(entity) {
-                let scale = hp.hp / 100.;
+                let scale = hp.hp / hp.max_hp;
                 transform.scale.x = scale;
                 transform.translation.x = (1. - scale) * radius.0 * -crate::player::HP_BAR_SCALE.x;
             }
