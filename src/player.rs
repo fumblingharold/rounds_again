@@ -72,6 +72,7 @@ pub fn print_player_info(player: Query<(&Transform, &Velocity2), With<Player>>) 
 pub struct AccumulatedInput {
     // The player's left-right movement input (AD).
     pub movement: f32,
+    pub down: bool,
     pub jump: bool,
     pub shoot: Option<Vec2>,
     pub block: bool,

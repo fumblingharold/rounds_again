@@ -38,6 +38,7 @@ pub fn update_input(
                 if keyboard_input.pressed(KeyCode::KeyD) {
                     accumulated_input.movement += 1.0;
                 }
+                accumulated_input.down = keyboard_input.pressed(KeyCode::KeyS);
                 if keyboard_input.pressed(KeyCode::Space) {
                     accumulated_input.jump = true;
                 }
@@ -66,6 +67,7 @@ pub fn update_input(
                     if movement.abs() > 0.15 {
                         accumulated_input.movement = movement;
                     }
+                    accumulated_input.down = controller.left_stick().y < -0.2;
                     if controller.pressed(GamepadButton::South) {
                         accumulated_input.jump = true;
                     }
@@ -199,6 +201,7 @@ pub fn update_players(
         (
             Entity,
             &KinematicCharacterControllerOutput,
+            &AccumulatedInput,
             &Radius,
             &mut Counter,
             &mut Velocity2,
@@ -209,8 +212,16 @@ pub fn update_players(
     >,
 ) {
     let rapier_context = rapier_context.single().unwrap();
-    for (entity, controller_output, radius, mut counter, mut velocity, mut abilities, position) in
-        players.iter_mut()
+    for (
+        entity,
+        controller_output,
+        input,
+        radius,
+        mut counter,
+        mut velocity,
+        mut abilities,
+        position,
+    ) in players.iter_mut()
     {
         let cast_distance = radius.0;
         let cast_half_width = radius.0 * f32::sqrt(2.) / 2.;
@@ -238,20 +249,23 @@ pub fn update_players(
             && velocity.0.y < 20.
         {
             abilities.refill_jump();
-            velocity.0.y *= 0.8;
 
-            let distance = shape_cast.time_of_impact * cast_distance;
-            let difference = sitting_distance - distance;
-            velocity.0.y += difference
-                * LEG_STRENGTH
-                * if f32::is_sign_negative(difference) {
-                    1.
-                } else {
-                    2.
-                };
-        } else {
-            velocity.0.y -= 9.8 * PIXELS_PER_METER * fixed_time.delta_secs();
+            if !input.down {
+                velocity.0.y *= 0.8;
+
+                let distance = shape_cast.time_of_impact * cast_distance;
+                let difference = sitting_distance - distance;
+                velocity.0.y += difference
+                    * LEG_STRENGTH
+                    * if f32::is_sign_negative(difference) {
+                        1.
+                    } else {
+                        2.
+                    };
+                continue;
+            }
         }
+        velocity.0.y -= 9.8 * PIXELS_PER_METER * fixed_time.delta_secs();
     }
 }
 
