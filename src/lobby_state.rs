@@ -44,7 +44,7 @@ impl LobbyData {
 /// Setups up the lobby.
 fn setup_lobby(mut commands: Commands) {
     let font = TextFont {
-        font_size: 33.,
+        font_size: FontSize::Px(33.),
         ..default()
     };
     let color = TextColor(Color::srgb(0.9, 0.9, 0.9));

@@ -44,7 +44,7 @@ pub fn setup_menu(mut commands: Commands) {
                 children![(
                     Text::new("Play"),
                     TextFont {
-                        font_size: 33.,
+                        font_size: FontSize::Px(33.),
                         ..default()
                     },
                     TextColor(Color::srgb(0.9, 0.9, 0.9)),

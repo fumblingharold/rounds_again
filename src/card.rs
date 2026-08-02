@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use std::sync::LazyLock;
 
 static CARD_FONT: LazyLock<TextFont> = LazyLock::new(|| TextFont {
-    font_size: 33.,
+    font_size: FontSize::Px(33.),
     ..default()
 });
 const CARD_TEXT_COLOR: TextColor = TextColor(Color::srgb(0.9, 0.9, 0.9));

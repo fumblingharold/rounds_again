@@ -10,7 +10,7 @@ pub enum Input {
 }
 
 /// A unique id for a player. There are max 255 ids. Id 0 is reserved for non-player objects.
-#[derive(Debug, Component, Resource, Clone, Copy, PartialEq)]
+#[derive(Debug, Component, Clone, Copy, PartialEq)]
 pub struct PlayerId(u8);
 
 /// Generates unique ids for players.
