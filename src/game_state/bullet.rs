@@ -7,6 +7,7 @@ use bevy_rapier2d::prelude::*;
 pub struct Bullet;
 
 /// Sets up a new bullet.
+#[allow(clippy::too_many_arguments)]
 pub fn setup_bullet(
     commands: &mut Commands,
     player_position: Vec3,

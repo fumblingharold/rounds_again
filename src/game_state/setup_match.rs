@@ -84,7 +84,7 @@ impl CirclePhysObjects {
         circle_phys_objects: &[Self],
     ) {
         let invincible_circle_material = materials.add(Color::from(tailwind::AMBER_500));
-        let destructable_circle_material = materials.add(Color::from(tailwind::AMBER_800));
+        let destructible_circle_material = materials.add(Color::from(tailwind::AMBER_800));
         for circle_phys_object in circle_phys_objects.iter() {
             let ball_mesh = meshes.add(Circle::new(circle_phys_object.radius));
             let mut bang = commands.spawn(PhysObject);
@@ -104,7 +104,7 @@ impl CirclePhysObjects {
                 ));
             let (material, hp) = match circle_phys_object.hp {
                 Some(hp) if hp <= 0. => panic!("physics objects must have health greater than 0"),
-                Some(hp) if !hp.is_infinite() => (destructable_circle_material.clone(), hp),
+                Some(hp) if !hp.is_infinite() => (destructible_circle_material.clone(), hp),
                 _ => (invincible_circle_material.clone(), f32::INFINITY),
             };
             bang.insert(MeshMaterial2d(material)).insert(Hp::new(hp));

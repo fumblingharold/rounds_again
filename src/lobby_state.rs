@@ -90,6 +90,7 @@ fn setup_lobby(mut commands: Commands) {
 }
 
 /// Adds/removes players in response to user input.
+#[allow(clippy::too_many_arguments)]
 fn update_lobby(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
