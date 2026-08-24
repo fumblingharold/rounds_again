@@ -1,4 +1,7 @@
-use crate::shared::{Bounces, Damage, Hp};
+use crate::{
+    collision_groups,
+    shared::{Bounces, Damage, Hp},
+};
 use arrayvec::ArrayVec;
 use bevy::{color::palettes::tailwind, prelude::*};
 use bevy_rapier2d::prelude::*;
@@ -6,7 +9,7 @@ use bevy_rapier2d::prelude::*;
 #[derive(Debug, Component, Clone, Copy, PartialEq)]
 pub enum Input {
     Keyboard,
-    Controller(Entity),
+    Gamepad(Entity),
 }
 
 /// A unique id for a player. There are max 255 ids. Id 0 is reserved for non-player objects.
@@ -56,11 +59,11 @@ impl Iterator for PlayerIdGen {
 pub const SPEED: f32 = 10.;
 
 /// Prints the position and velocity of all players.
-pub fn print_player_info(player: Query<(&Transform, &Velocity2), With<Player>>) {
+pub fn print_player_info(player: Query<(&Transform, &Velocity), With<Player>>) {
     for (transform, velocity) in player.iter() {
         println!(
             "Velocity: {} position: {}",
-            velocity.0, transform.translation
+            velocity.linear, transform.translation
         );
     }
 }
@@ -164,6 +167,7 @@ impl Abilities {
     }
 }
 
+// TODO need to make jumps not trigger when holding the button
 impl Default for Abilities {
     fn default() -> Self {
         Self {
@@ -172,7 +176,7 @@ impl Default for Abilities {
                 stock: 1,
                 max_stock: 1,
                 use_time: 5,
-                cooldown_time: 0,
+                cooldown_time: 20,
             },
             shoot: Ability {
                 state: State::Ready,
@@ -204,11 +208,6 @@ pub struct HpBarRed;
 #[derive(Debug, Component, Default)]
 pub struct Radius(pub f32);
 
-/// Custom velocity struct. Need to keep track of player velocity but rapier's velocity doesn't seem
-/// to play too nicely?
-#[derive(Debug, Component, Default)]
-pub struct Velocity2(pub Vect);
-
 #[derive(Debug, Component, Default)]
 pub struct Counter(pub u64);
 
@@ -232,12 +231,6 @@ pub fn setup_player(
     let player_radius = 25.;
     let body_mesh = meshes.add(Circle::new(player_radius));
     let body_material = materials.add(color);
-    let controller = KinematicCharacterController {
-        //offset: CharacterLength::Relative(0.05),
-        //filter_groups: Some(collision_groups),
-        // normal_nudge_factor: 0.5,
-        ..default()
-    };
     let bar_mesh = meshes.add(Rectangle::new(
         player_radius * 2. * HP_BAR_SCALE.x,
         player_radius * 2. * HP_BAR_SCALE.y,
@@ -258,20 +251,25 @@ pub fn setup_player(
         .insert(LastHit(0))
         .insert(DamageTakenThisTick(ArrayVec::from_iter(Some(0f32))))
         .insert(AccumulatedInput::default())
-        .insert(Velocity2::default())
         .insert(Abilities::default())
         .insert(Radius(player_radius))
         .insert(Collider::ball(25.))
         .insert(Sleeping::disabled())
         .insert(LockedAxes::ROTATION_LOCKED)
         .insert(Visibility::Visible)
-        // .insert(CollidingEntities::default())
-        // .insert(collision_groups)
-        // .insert(friction)
-        .insert(controller)
-        .insert(KinematicCharacterControllerOutput::default())
+        .insert(ActiveEvents::CONTACT_FORCE_EVENTS)
+        // TODO have a reason for this value
+        .insert(ContactForceEventThreshold(0.1))
+        .insert(Velocity::default())
+        // TODO have a reason for this value
+        .insert(GravityScale(1.))
+        .insert(CollisionGroups::new(
+            collision_groups::PLAYERS,
+            Group::default(),
+        ))
+        .insert(RigidBody::Dynamic)
         .with_children(|parent| {
-            parent.spawn(RigidBody::KinematicPositionBased);
+            // TODO clean up the health bar code a bit
             parent
                 .spawn(Mesh2d(body_mesh))
                 .insert(MeshMaterial2d(body_material));

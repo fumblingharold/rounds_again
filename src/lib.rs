@@ -21,6 +21,7 @@
 
 mod card;
 mod card_selection_state;
+mod collision_groups;
 mod game_state;
 mod lobby_state;
 mod pause_state;

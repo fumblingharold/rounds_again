@@ -1,7 +1,7 @@
 use super::*;
-use crate::AppState;
 use crate::game_state::wall::Wall;
 use crate::shared::Hp;
+use crate::{AppState, collision_groups};
 use bevy::color::palettes::tailwind;
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
@@ -58,6 +58,10 @@ impl RectWall {
                 ))
                 .insert(Mesh2d(wall_mesh.clone()))
                 .insert(MeshMaterial2d(wall_material.clone()))
+                .insert(CollisionGroups::new(
+                    collision_groups::WALLS,
+                    Group::default(),
+                ))
                 .insert(Transform::from_xyz(rect_wall.x, rect_wall.y, 0.));
         }
     }
@@ -89,6 +93,10 @@ impl CirclePhysObjects {
                 .insert(RigidBody::Dynamic)
                 .insert(Collider::ball(circle_phys_object.radius))
                 .insert(Restitution::coefficient(0.7))
+                .insert(CollisionGroups::new(
+                    collision_groups::PHYS_OBJECTS,
+                    Group::default(),
+                ))
                 .insert(Transform::from_xyz(
                     circle_phys_object.x,
                     circle_phys_object.y,

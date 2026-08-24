@@ -80,7 +80,7 @@ impl Plugin for GamePlugin {
             run_in_game(
                 (
                     (
-                        (handle_player_hit, handle_player_damage).chain(),
+                        (handle_player_hit, handle_player_damage, handle_wall_touch).chain(),
                         handle_phys_object_hit,
                         handle_bullet_hit,
                     ),
@@ -138,5 +138,9 @@ fn try_end_match(mut next_state: ResMut<NextState<AppState>>, players: Query<&Hp
             }
         }
     }
-    next_state.set(AppState::CardSelection);
+    // For testing: if there's one player any they're dead, go back to card
+    // selection.
+    if players.iter().len() != 1 || !found_one {
+        next_state.set(AppState::CardSelection);
+    }
 }

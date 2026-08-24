@@ -148,7 +148,7 @@ fn update_card_selection(
     };
 
     match input {
-        Input::Controller(controller) => {
+        Input::Gamepad(controller) => {
             let controller = controllers.get(*controller).unwrap();
             process_input(
                 controller.just_pressed(GamepadButton::South),

@@ -1,3 +1,4 @@
+use crate::collision_groups;
 use crate::shared::{Bounces, Damage, Source};
 use bevy::{color::palettes::tailwind, prelude::*};
 use bevy_rapier2d::prelude::*;
@@ -42,6 +43,10 @@ pub fn setup_bullet(
             coefficient: 0.9,
             combine_rule: CoefficientCombineRule::Max,
         })
+        .insert(CollisionGroups::new(
+            collision_groups::BULLETS,
+            Group::default(),
+        ))
         .insert(ActiveEvents::COLLISION_EVENTS);
 }
 

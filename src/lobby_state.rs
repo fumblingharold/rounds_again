@@ -157,7 +157,7 @@ fn update_lobby(
     for (controller_entity, controller) in controllers {
         if controller.just_pressed(GamepadButton::East) {
             cleanup_matching(
-                Input::Controller(controller_entity),
+                Input::Gamepad(controller_entity),
                 &mut player_id_gen,
                 &mut commands,
                 lobby_data.reborrow().into_inner(),
@@ -165,7 +165,7 @@ fn update_lobby(
         }
         if controller.just_pressed(GamepadButton::South) {
             try_setup_player(
-                Input::Controller(controller_entity),
+                Input::Gamepad(controller_entity),
                 &mut player_id_gen,
                 &mut commands,
                 lobby_data.reborrow().into_inner(),
