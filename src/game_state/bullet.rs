@@ -1,4 +1,5 @@
 use crate::collision_groups;
+use crate::player::PlayerId;
 use crate::shared::{Bounces, Damage, Source};
 use bevy::{color::palettes::tailwind, prelude::*};
 use bevy_rapier2d::prelude::*;
@@ -14,6 +15,7 @@ pub fn setup_bullet(
     radius: f32,
     bounces: Bounces,
     damage: Damage,
+    source: Source,
     velocity: Vec2,
     materials: &mut Assets<ColorMaterial>,
     meshes: &mut Assets<Mesh>,
@@ -26,8 +28,7 @@ pub fn setup_bullet(
         .spawn(Bullet)
         .insert(bounces)
         .insert(damage)
-        // TODO make this actually reflect the player shooting
-        .insert(Source(0))
+        .insert(source)
         .insert(GravityScale(0.5))
         .insert(Transform::from_translation(position))
         .insert(Mesh2d(body_mesh))

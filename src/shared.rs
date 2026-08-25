@@ -36,5 +36,10 @@ pub struct Damage(pub f32);
 #[derive(Debug, Component, Clone, Copy, PartialEq, Default)]
 pub struct Source(pub u8);
 
+impl Source {
+    /// The source of world damage (physics objects and walls).
+    pub const WORLD: Source = Source(0);
+}
+
 #[derive(Debug, Component, Clone, Copy, PartialEq, Hash, Default)]
 pub struct Bounces(pub u8);

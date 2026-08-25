@@ -1,7 +1,7 @@
 use super::{Bullet, setup_bullet};
 use crate::player::{
     Abilities, AccumulatedInput, BulletSpeed, Counter, DamageTakenThisTick, HpBarGreen, Input,
-    LastHit, Player, Radius, SPEED,
+    LastHit, Player, PlayerId, Radius, SPEED,
 };
 use crate::shared::{Bounces, Damage, Hp, Source};
 use crate::{AppState, collision_groups};
@@ -144,14 +144,24 @@ pub fn prepare_players(
             &mut Abilities,
             &Transform,
             &Radius,
+            &PlayerId,
         ),
         With<Player>,
     >,
 ) {
     let materials = materials.into_inner();
     let meshes = meshes.into_inner();
-    for (mut velocity, input, damage, bounces, bullet_speed, mut abilities, position, radius) in
-        players.iter_mut()
+    for (
+        mut velocity,
+        input,
+        damage,
+        bounces,
+        bullet_speed,
+        mut abilities,
+        position,
+        radius,
+        player_id,
+    ) in players.iter_mut()
     {
         if input.movement.abs() == 0.0 || input.movement.signum() != velocity.linear.x.signum() {
             velocity.linear.x *= 0.8;
@@ -171,6 +181,7 @@ pub fn prepare_players(
                 radius.0,
                 *bounces,
                 *damage,
+                player_id.into_source(),
                 input.shoot.unwrap() * bullet_speed.0,
                 materials,
                 meshes,
@@ -317,8 +328,7 @@ pub fn handle_player_hit(
             if let Ok(mut damage_taken_this_tick) = player_query.get_mut(player)
                 && let Ok((damage, source)) = bullet_query.get(bullet)
             {
-                // TODO apply damage where it should actually be applied
-                damage_taken_this_tick.0[0] += damage.0;
+                damage_taken_this_tick[*source] += damage.0;
             }
         };
 
@@ -333,46 +343,52 @@ pub fn handle_player_hit(
 pub fn handle_player_damage(
     mut player_query: Query<
         (
-            Entity,
             &mut DamageTakenThisTick,
             &mut Hp,
             &mut LastHit,
             &Children,
             &Radius,
+            &PlayerId,
         ),
         With<Player>,
     >,
     mut hp_bar_query: Query<&mut Transform, With<HpBarGreen>>,
 ) {
-    // TODO need to remove damage from this player from max calculation
-    for (entity, mut damage_this_tick, mut hp, mut last_hit, children, radius) in
+    for (mut damage_this_tick, mut hp, mut last_hit, children, radius, player_id) in
         player_query.iter_mut()
     {
-        let damage_from_player0 = damage_this_tick.0[0];
-        hp.damage(damage_from_player0);
-        let (max_idx, max) = damage_this_tick.0.iter_mut().enumerate().skip(1).fold(
-            (0, damage_from_player0),
+        // Apply world damage
+        let damage_from_world = damage_this_tick[Source::WORLD];
+        hp.damage(damage_from_world);
+
+        // Apply damage from all players and find the player that did the most
+        // damage this tick
+        let (max_idx, max) = damage_this_tick.into_iter().enumerate().skip(1).fold(
+            (0, 0.),
             |(max_idx, max), (val_idx, val)| {
-                let saved_val = *val;
-                hp.damage(saved_val);
-                if saved_val > max {
-                    (val_idx, saved_val)
+                hp.damage(*val);
+                if *val > max && player_id.into_source() != Source(val_idx as u8) {
+                    (val_idx as u8, *val)
                 } else {
                     (max_idx, max)
                 }
             },
         );
-        damage_this_tick.0.fill(0.);
-        // Update last_hit if a player got a hit
-        if max > 0. {
-            last_hit.0 = max_idx as u8;
-        }
 
+        // Update last_hit if there was a player hit
+        if max > 0. {
+            last_hit.0 = max_idx;
+        }
+        // Reset the `damage_this_tick` for the next tick
+        damage_this_tick.zero();
+
+        // Update the health bar
         for entity in children.iter() {
             if let Ok(mut transform) = hp_bar_query.get_mut(entity) {
                 let scale = hp.hp / hp.max_hp;
                 transform.scale.x = scale;
                 transform.translation.x = (1. - scale) * radius.0 * -crate::player::HP_BAR_SCALE.x;
+                break;
             }
         }
     }

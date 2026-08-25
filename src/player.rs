@@ -1,10 +1,14 @@
 use crate::{
     collision_groups,
-    shared::{Bounces, Damage, Hp},
+    shared::{Bounces, Damage, Hp, Source},
 };
 use arrayvec::ArrayVec;
 use bevy::{color::palettes::tailwind, prelude::*};
 use bevy_rapier2d::prelude::*;
+use std::ops::{Index, IndexMut};
+
+/// The maximum number of players in a match.
+const MAX_PLAYERS: u8 = 255;
 
 #[derive(Debug, Component, Clone, Copy, PartialEq)]
 pub enum Input {
@@ -15,6 +19,13 @@ pub enum Input {
 /// A unique id for a player. There are max 255 ids. Id 0 is reserved for non-player objects.
 #[derive(Debug, Component, Clone, Copy, PartialEq)]
 pub struct PlayerId(u8);
+
+impl PlayerId {
+    /// Converts the PlayerId into a Source component.
+    pub fn into_source(self) -> Source {
+        Source(self.0)
+    }
+}
 
 /// Generates unique ids for players.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Resource)]
@@ -45,7 +56,7 @@ impl Iterator for PlayerIdGen {
             Some(PlayerId(val))
         } else {
             match &mut self.0 {
-                255 => None,
+                &mut MAX_PLAYERS => None,
                 val => {
                     *val += 1;
                     Some(PlayerId(*val))
@@ -197,7 +208,37 @@ pub struct Player;
 pub struct LastHit(pub u8);
 
 #[derive(Debug, Component)]
-pub struct DamageTakenThisTick(pub ArrayVec<f32, 255>);
+pub struct DamageTakenThisTick(ArrayVec<f32, { MAX_PLAYERS as usize + 1 }>);
+
+impl DamageTakenThisTick {
+    /// Resets the damage to 0 for all sources.
+    pub fn zero(&mut self) {
+        self.0.fill(0.);
+    }
+}
+
+impl Index<Source> for DamageTakenThisTick {
+    type Output = f32;
+
+    fn index(&self, index: Source) -> &Self::Output {
+        &self.0[index.0 as usize]
+    }
+}
+
+impl IndexMut<Source> for DamageTakenThisTick {
+    fn index_mut(&mut self, index: Source) -> &mut Self::Output {
+        &mut self.0[index.0 as usize]
+    }
+}
+
+impl<'a> IntoIterator for &'a DamageTakenThisTick {
+    type Item = &'a f32;
+    type IntoIter = std::slice::Iter<'a, f32>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
 
 #[derive(Debug, Component, Default)]
 pub struct HpBarGreen;
