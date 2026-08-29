@@ -1,5 +1,7 @@
 use super::AppState;
-use crate::player::{Input, Player, PlayerColor, PlayerId, PlayerIdGen, setup_player};
+use crate::player::{
+    DamageTakenThisTick, Input, Player, PlayerColor, PlayerId, PlayerIdGen, setup_player,
+};
 use bevy::prelude::*;
 
 pub struct LobbyPlugin;
@@ -9,7 +11,7 @@ impl Plugin for LobbyPlugin {
         app.init_resource::<PlayerIdGen>()
             .add_systems(OnEnter(AppState::Lobby), setup_lobby)
             .add_systems(Update, update_lobby.run_if(in_state(AppState::Lobby)))
-            .add_systems(OnExit(AppState::Lobby), cleanup_lobby);
+            .add_systems(OnExit(AppState::Lobby), (finish_players, cleanup_lobby));
     }
 }
 
@@ -176,6 +178,20 @@ fn update_lobby(
 
     if keyboard_input.just_pressed(KeyCode::Enter) {
         next_state.set(AppState::Game);
+    }
+}
+
+/// Adds the [`DamageTakenThisTick`] component to all players with correct size.
+fn finish_players(
+    mut commands: Commands,
+    mut players: Query<Entity, With<Player>>,
+) {
+    let players = players.iter_mut();
+    let num_players = players.len() as u8;
+    for player in players {
+        commands
+            .entity(player)
+            .insert(DamageTakenThisTick::new(num_players));
     }
 }
 

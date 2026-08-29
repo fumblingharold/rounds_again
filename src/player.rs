@@ -211,6 +211,14 @@ pub struct LastHit(pub u8);
 pub struct DamageTakenThisTick(ArrayVec<f32, { MAX_PLAYERS as usize + 1 }>);
 
 impl DamageTakenThisTick {
+    /// Creates a new `DamageTakenThisTick` for the given number of players.
+    pub fn new(num_players: u8) -> Self {
+        Self(ArrayVec::from_iter(std::iter::repeat_n(
+            0.,
+            (num_players + 1) as usize,
+        )))
+    }
+
     /// Resets the damage to 0 for all sources.
     pub fn zero(&mut self) {
         self.0.fill(0.);
@@ -290,7 +298,6 @@ pub fn setup_player(
         .insert(Bounces(0))
         .insert(Transform::default())
         .insert(LastHit(0))
-        .insert(DamageTakenThisTick(ArrayVec::from_iter(Some(0f32))))
         .insert(AccumulatedInput::default())
         .insert(Abilities::default())
         .insert(Radius(player_radius))
