@@ -1,5 +1,4 @@
 use crate::collision_groups;
-use crate::player::PlayerId;
 use crate::shared::{Bounces, Damage, Source};
 use bevy::{color::palettes::tailwind, prelude::*};
 use bevy_rapier2d::prelude::*;
@@ -49,6 +48,7 @@ pub fn setup_bullet(
             collision_groups::BULLETS,
             Group::default(),
         ))
+        .insert(SolverGroups::new(Group::empty(), Group::empty()))
         .insert(ActiveEvents::COLLISION_EVENTS);
 }
 
@@ -56,27 +56,50 @@ pub fn setup_bullet(
 #[derive(Message)]
 pub struct BulletKillMessage(pub Entity);
 
-/// Updates all bullets based on their collisions.
+/// Updates all bullets based on their collisions and applies impulses to the objects hit.
+/// TODO: move the non-bullet part somewhere else
 /// Decrements bounces on hit and adds a BulletKillMessage when bounces run out.
 pub fn handle_bullet_hit(
     mut collision_events: MessageReader<CollisionEvent>,
     mut kill_bullet_events: MessageWriter<BulletKillMessage>,
-    mut query: Query<&mut Bounces, With<Bullet>>,
+    rapier_context: ReadRapierContext,
+    mut bullet_query: Query<(&mut Bounces, &mut Velocity), With<Bullet>>,
+    damage_query: Query<&Damage, With<Bullet>>,
+    mut other_query: Query<&mut ExternalImpulse, Without<Bullet>>,
 ) {
+    let rapier_context = rapier_context.single().unwrap();
     for event in collision_events.read() {
         let (&left, &right, _flags) = match event {
             CollisionEvent::Started(left, right, flags) => (left, right, flags),
             CollisionEvent::Stopped(_, _, _) => break,
         };
 
+        let normal = rapier_context
+            .contact_pair(left, right)
+            .unwrap()
+            .find_deepest_contact()
+            .unwrap()
+            .0
+            .normal();
+
+        let damage = damage_query
+            .get(left)
+            .or_else(|_| damage_query.get(right))
+            .unwrap()
+            .0;
+
         let mut handle_collision = |entity| {
-            if let Ok(mut bounces) = query.get_mut(entity) {
+            if let Ok((mut bounces, mut velocity)) = bullet_query.get_mut(entity) {
                 if bounces.0 > 0 {
                     bounces.0 -= 1
                 } else {
                     kill_bullet_events.write(BulletKillMessage(entity));
                 }
-            }
+                velocity.linear = velocity.linear.reflect(normal);
+            } else if let Ok(mut impulse) = other_query.get_mut(entity) {
+                // TODO have a reason for this magic value
+                impulse.impulse -= normal * damage * 100000.;
+            };
         };
 
         handle_collision(left);

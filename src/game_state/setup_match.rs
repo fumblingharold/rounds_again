@@ -101,7 +101,8 @@ impl CirclePhysObjects {
                     circle_phys_object.x,
                     circle_phys_object.y,
                     0.,
-                ));
+                ))
+                .insert(ExternalImpulse::default());
             let (material, hp) = match circle_phys_object.hp {
                 Some(hp) if hp <= 0. => panic!("physics objects must have health greater than 0"),
                 Some(hp) if !hp.is_infinite() => (destructible_circle_material.clone(), hp),

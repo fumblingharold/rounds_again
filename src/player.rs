@@ -316,6 +316,7 @@ pub fn setup_player(
             Group::default(),
         ))
         .insert(RigidBody::Dynamic)
+        .insert(ExternalImpulse::default())
         .with_children(|parent| {
             // TODO clean up the health bar code a bit
             parent
