@@ -2,12 +2,12 @@
 
 ## Potential Features
 
--[ ] Allow points awarded based on last survivor or num kills (num kills % n = num
-points awarded, keep playing until threshold met)
+-[ ] Allow points awarded based on last survivor or num kills (num kills % n =
+num points awarded, keep playing until threshold met)
 
--[ ] Players can choose between pre-made decks (classes) including an all-rounder
-with all cards -[ ] Don't have a great idea for how to balance custom decks (cards
-based on probability, not actually drawing cards)
+-[ ] Players can choose between pre-made decks (classes) including an
+all-rounder with all cards -[ ] Don't have a great idea for how to balance
+custom decks (cards based on probability, not actually drawing cards)
 
 -[ ] Allow players to join mid-game (num cards randomized or selected by other
 players?)
@@ -42,7 +42,7 @@ players?)
 
 ## Pending Fixes
 
--[ ] Make jump require button to be released before it can be reactivated (or maybe
-touching ground also does it?)
+-[ ] Make jump require button to be released before it can be reactivated (or
+maybe touching ground also does it?)
 
 -[ ] Players should start without jump stock
