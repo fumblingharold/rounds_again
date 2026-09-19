@@ -73,6 +73,7 @@ impl Leaderboard {
 
     /// Whether the partial points are enough to form at least 1 full point.
     pub fn full_point(&self, partial_points: PartialPoints) -> bool {
+        // println!("pp: {partial_points:?}");
         partial_points.0 >= self.partial_points_per_point
     }
 }

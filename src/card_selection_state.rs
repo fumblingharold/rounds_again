@@ -118,12 +118,14 @@ fn update_card_selection(
 
         // If num_cards_to_take isn't initialized, set its value
         if card_selection_data.num_cards_to_take.is_none() {
+            commands.entity(card_selection_data.ui).despawn();
             let (ui, card_buttons, cards) = draw_5(commands.reborrow());
             card_selection_data.ui = ui;
             card_selection_data.cards = cards;
             card_selection_data.card_buttons = card_buttons;
             card_selection_data.num_cards_to_take =
                 Some(leaderboard.num_cards_to_take(partial_points));
+            return;
         }
 
         // If player will not be given any cards, remove them from the queue
@@ -146,15 +148,14 @@ fn update_card_selection(
             && select
         {
             // Take card
-            commands.entity(card_selection_data.ui).despawn();
+            card_selection_data.cards[selected_idx as usize]
+                .update_player(commands.reborrow(), player);
             // Decrement num_cards to take
             card_selection_data
                 .num_cards_to_take
                 .as_mut()
                 .unwrap()
                 .sub_assign(1);
-            card_selection_data.cards[selected_idx as usize]
-                .update_player(commands.reborrow(), player);
             card_selection_data.selected_card = None;
         } else {
             if left {
