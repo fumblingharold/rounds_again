@@ -98,7 +98,8 @@ pub fn handle_bullet_hit(
                 velocity.linear = velocity.linear.reflect(normal);
             } else if let Ok(mut impulse) = other_query.get_mut(entity) {
                 // TODO have a reason for this magic value
-                impulse.impulse -= normal * damage * 100000.;
+                impulse.impulse -=
+                    normal * damage * 100000. * if entity == left { 1. } else { -1. };
             };
         };
 
