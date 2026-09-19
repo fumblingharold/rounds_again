@@ -84,3 +84,30 @@ about any card
 maybe touching ground also does it?)
 
 - [ ] Players should start without jump stock
+
+### FSM
+
+```mermaid
+graph LR
+
+  subgraph "Conventional Controls Only"
+    TitleScreen;
+  end
+
+  subgraph "Conventional or Character Controls"
+    Lobby;
+    CardSelection;
+    VictoryScreen;
+  end
+
+  subgraph "Character Controls Only"
+    Match;
+  end
+
+  TitleScreen --> Lobby;
+  Lobby --> Match;
+  Match --> CardSelection;
+  Match --> VictoryScreen;
+  CardSelection --> Match;
+  VictoryScreen --> TitleScreen;
+```
