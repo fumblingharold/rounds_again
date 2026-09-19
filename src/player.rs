@@ -1,6 +1,5 @@
 use crate::{
-    collision_groups,
-    shared::{Bounces, Damage, Hp, Source},
+    collision_groups, scoring, shared::{Bounces, Damage, Hp, Source},
 };
 use arrayvec::ArrayVec;
 use bevy::{color::palettes::tailwind, prelude::*};
@@ -14,11 +13,13 @@ const MAX_PLAYERS: u8 = 255;
 pub enum Input {
     Keyboard,
     Gamepad(Entity),
+    /// Represents a "player" with no input (useful for testing).
+    Dummy,
 }
 
 /// A unique id for a player. There are max 255 ids. Id 0 is reserved for non-player objects.
 #[derive(Debug, Component, Clone, Copy, PartialEq)]
-pub struct PlayerId(u8);
+pub struct PlayerId(pub u8);
 
 impl PlayerId {
     /// Converts the PlayerId into a Source component.
@@ -266,6 +267,9 @@ pub struct BulletSpeed(pub f32);
 #[derive(Debug, Component, Default)]
 pub struct PlayerColor(pub Color);
 
+#[derive(Debug, Component, Default)]
+pub struct Living(pub bool);
+
 pub const HP_BAR_SCALE: Vec2 = Vec2::new(0.9, 1. / 15.);
 
 /// Sets up a player.
@@ -287,6 +291,7 @@ pub fn setup_player(
 
     commands
         .spawn(Player)
+        .insert(Living(true))
         .insert(Counter(0))
         .insert(Name::new("Player"))
         .insert(input)
@@ -317,6 +322,7 @@ pub fn setup_player(
         ))
         .insert(RigidBody::Dynamic)
         .insert(ExternalImpulse::default())
+        .insert(scoring::PartialPoints::default())
         .with_children(|parent| {
             // TODO clean up the health bar code a bit
             parent

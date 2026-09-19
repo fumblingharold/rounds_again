@@ -1,13 +1,13 @@
-use super::AppState;
 use bevy::prelude::*;
+use crate::MenuState;
 
 pub struct PausePlugin;
 
 impl Plugin for PausePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(OnEnter(AppState::Pause), setup_menu)
-            .add_systems(Update, update_menu.run_if(in_state(AppState::Pause)))
-            .add_systems(OnExit(AppState::Pause), cleanup_menu);
+        app.add_systems(OnEnter(MenuState(true)), setup_menu)
+            .add_systems(Update, update_menu.run_if(in_state(MenuState(true))))
+            .add_systems(OnExit(MenuState(true)), cleanup_menu);
     }
 }
 
@@ -62,7 +62,7 @@ fn cleanup_menu(mut commands: Commands, menu_data: Res<MenuData>) {
 
 /// Updates the pause menu in response to user input.
 fn update_menu(
-    mut next_state: ResMut<NextState<AppState>>,
+    mut next_state: ResMut<NextState<MenuState>>,
     mut interaction_query: Query<
         (&Interaction, &mut BackgroundColor),
         (Changed<Interaction>, With<Button>),
@@ -72,7 +72,7 @@ fn update_menu(
         match *interaction {
             Interaction::Pressed => {
                 *color = PRESSED_BUTTON.into();
-                next_state.set(AppState::Game);
+                next_state.set(MenuState(false));
             }
             Interaction::Hovered => {
                 *color = HOVERED_BUTTON.into();

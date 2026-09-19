@@ -1,5 +1,6 @@
 use super::*;
 use crate::game_state::wall::Wall;
+use crate::player::Living;
 use crate::shared::Hp;
 use crate::{AppState, collision_groups};
 use bevy::color::palettes::tailwind;
@@ -118,8 +119,8 @@ pub fn setup_match(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    players: Query<&mut Transform, With<Player>>,
-    mut next_state: ResMut<NextState<AppState>>,
+    player_transforms: Query<&mut Transform, With<Player>>,
+    player_livings: Query<&mut Living, With<Player>>,
 ) {
     let map_file: MapFile = toml::from_str(
         &fs::read_to_string("./default_maps.toml").expect("Could not access default_maps.toml"),
@@ -137,26 +138,38 @@ pub fn setup_match(
         &map.circle_phys_objects,
     );
 
-    move_players(players, &mut map.player_spawn_points);
-
-    next_state.set(AppState::Game);
+    setup_players(
+        player_transforms,
+        player_livings,
+        &mut map.player_spawn_points,
+    );
 }
 
-fn move_players(
-    mut players: Query<&mut Transform, With<Player>>,
+/// Sets up all players for a match.
+fn setup_players(
+    mut player_transforms: Query<&mut Transform, With<Player>>,
+    mut player_livings: Query<&mut Living, With<Player>>,
     player_spawn_points: &mut [PlayerSpawnPoint],
 ) {
     assert!(
-        players.iter().len() <= player_spawn_points.len(),
+        player_transforms.iter().len() <= player_spawn_points.len(),
         "too many players for the map"
     );
+
+    // Shuffle player positions
     player_spawn_points.shuffle(&mut ThreadRng::default());
+    // Move players to the set positions on the map
     for (mut player_transform, player_spawn_point) in
-        players.iter_mut().zip(player_spawn_points.iter())
+        player_transforms.iter_mut().zip(player_spawn_points.iter())
     {
         player_transform.translation.x = player_spawn_point.x;
         player_transform.translation.y = player_spawn_point.y;
     }
+
+    // Set all players to living
+    player_livings
+        .iter_mut()
+        .for_each(|mut living| living.0 = true);
 }
 
 /// Clears all entities from the match
@@ -165,6 +178,7 @@ pub fn cleanup_match(
     walls: Query<Entity, With<Wall>>,
     phys_objects: Query<Entity, With<PhysObject>>,
     bullets: Query<Entity, With<Bullet>>,
+    players: Query<&mut Hp, With<Player>>,
 ) {
     for entity in walls
         .iter()
@@ -172,5 +186,8 @@ pub fn cleanup_match(
         .chain(bullets.iter())
     {
         commands.entity(entity).despawn();
+    }
+    for mut hp in players {
+        hp.reset();
     }
 }

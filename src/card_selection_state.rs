@@ -4,8 +4,9 @@ use crate::card::{
     UNSELECTED_CARD_BORDER,
 };
 use crate::player::{Input, Player};
-use crate::shared::Hp;
+use crate::scoring::{Leaderboard, PartialPoints};
 use bevy::prelude::*;
+use std::ops::SubAssign;
 
 pub struct CardSelectionPlugin;
 
@@ -18,7 +19,7 @@ impl Plugin for CardSelectionPlugin {
             )
             .add_systems(
                 OnExit(AppState::CardSelection),
-                (cleanup_card_selection, reset_players),
+                (cleanup_card_selection, reset_partial_points),
             );
     }
 }
@@ -30,6 +31,7 @@ struct CardSelectionData {
     card_buttons: Vec<Entity>,
     cards: Vec<Box<dyn Card>>,
     players_left: Vec<Entity>,
+    num_cards_to_take: Option<u8>,
     selected_card: Option<u8>,
 }
 
@@ -85,6 +87,7 @@ fn setup_card_selection(mut commands: Commands, players: Query<Entity, With<Play
         card_buttons,
         cards,
         players_left,
+        num_cards_to_take: None,
         selected_card: None,
     });
 }
@@ -94,32 +97,66 @@ fn update_card_selection(
     mut commands: Commands,
     mut next_state: ResMut<NextState<AppState>>,
     mut card_selection_data: ResMut<CardSelectionData>,
+    leaderboard: Res<Leaderboard>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
     controllers: Query<&Gamepad>,
-    mut players: Query<&Input, With<Player>>,
+    mut players: Query<(&Input, &PartialPoints), With<Player>>,
     mut card_buttons: Query<&mut Outline>,
 ) {
-    let player = card_selection_data.players_left.last().unwrap();
-    let input = players.get_mut(*player).unwrap();
+    // Get player and player's input
+    let (player, input) = loop {
+        // If no more players left, change state and return
+        if card_selection_data.players_left.is_empty() {
+            commands.entity(card_selection_data.ui).despawn();
+            next_state.set(AppState::Match);
+            return;
+        }
 
+        // Get the next player's data
+        let &player = card_selection_data.players_left.last().unwrap();
+        let (input, &partial_points) = players.get_mut(player).unwrap();
+
+        // If num_cards_to_take isn't initialized, set its value
+        if card_selection_data.num_cards_to_take.is_none() {
+            commands.entity(card_selection_data.ui).despawn();
+            let (ui, card_buttons, cards) = draw_5(commands.reborrow());
+            card_selection_data.ui = ui;
+            card_selection_data.cards = cards;
+            card_selection_data.card_buttons = card_buttons;
+            card_selection_data.num_cards_to_take =
+                Some(leaderboard.num_cards_to_take(partial_points));
+            return;
+        }
+
+        // If player will not be given any cards, remove them from the queue
+        if card_selection_data
+            .num_cards_to_take
+            .is_some_and(|num_cards_to_take| num_cards_to_take == 0)
+        {
+            card_selection_data.players_left.pop();
+            card_selection_data.num_cards_to_take = None;
+            continue;
+        }
+
+        // Return the player and their input
+        break (player, input);
+    };
+
+    // Use the player input to perform the action
     let mut process_input = |select, left, right| {
         if let Some(selected_idx) = card_selection_data.selected_card
             && select
         {
             // Take card
-            commands.entity(card_selection_data.ui).despawn();
-            let player = card_selection_data.players_left.pop().unwrap();
             card_selection_data.cards[selected_idx as usize]
                 .update_player(commands.reborrow(), player);
-            if card_selection_data.players_left.is_empty() {
-                next_state.set(AppState::Game);
-            } else {
-                let (ui, card_buttons, cards) = draw_5(commands.reborrow());
-                card_selection_data.ui = ui;
-                card_selection_data.cards = cards;
-                card_selection_data.card_buttons = card_buttons;
-                card_selection_data.selected_card = None;
-            }
+            // Decrement num_cards to take
+            card_selection_data
+                .num_cards_to_take
+                .as_mut()
+                .unwrap()
+                .sub_assign(1);
+            card_selection_data.selected_card = None;
         } else {
             if left {
                 card_selection_data.selected_card = Some(match card_selection_data.selected_card {
@@ -147,6 +184,7 @@ fn update_card_selection(
         }
     };
 
+    // Process player's input
     match input {
         Input::Gamepad(controller) => {
             let controller = controllers.get(*controller).unwrap();
@@ -163,6 +201,9 @@ fn update_card_selection(
                 keyboard_input.just_pressed(KeyCode::KeyD),
             );
         }
+        Input::Dummy => {
+            process_input(true, false, true);
+        }
     }
 }
 
@@ -174,8 +215,9 @@ fn cleanup_card_selection(mut commands: Commands) {
 /// Resets the players to prepare for the next match.
 ///
 /// TODO move this into the match load state
-fn reset_players(mut players: Query<&mut Hp, With<Player>>) {
-    for mut hp in players.iter_mut() {
-        hp.reset();
+/// TODO reset more components
+fn reset_partial_points(mut players: Query<&mut PartialPoints, With<Player>>) {
+    for mut partial_points in players.iter_mut() {
+        partial_points.reset();
     }
 }
