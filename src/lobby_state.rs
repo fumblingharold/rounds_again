@@ -2,6 +2,7 @@ use super::AppState;
 use crate::player::{
     DamageTakenThisTick, Input, Player, PlayerColor, PlayerId, PlayerIdGen, setup_player,
 };
+use crate::scoring::Leaderboard;
 use bevy::prelude::*;
 
 pub struct LobbyPlugin;
@@ -175,17 +176,23 @@ fn update_lobby(
             );
         }
     }
+    // Add a fake player (useful for testing)
+    if keyboard_input.just_pressed(KeyCode::Equal) {
+        try_setup_player(
+            Input::Dummy,
+            &mut player_id_gen,
+            &mut commands,
+            lobby_data.reborrow().into_inner(),
+        )
+    }
 
     if keyboard_input.just_pressed(KeyCode::Enter) {
-        next_state.set(AppState::Game);
+        next_state.set(AppState::Match);
     }
 }
 
-/// Adds the [`DamageTakenThisTick`] component to all players with correct size.
-fn finish_players(
-    mut commands: Commands,
-    mut players: Query<Entity, With<Player>>,
-) {
+/// Finishes setting up everything for the game out of the lobby.
+fn finish_players(mut commands: Commands, mut players: Query<Entity, With<Player>>) {
     let players = players.iter_mut();
     let num_players = players.len() as u8;
     for player in players {
@@ -193,6 +200,7 @@ fn finish_players(
             .entity(player)
             .insert(DamageTakenThisTick::new(num_players));
     }
+    commands.insert_resource(Leaderboard::new(num_players));
 }
 
 /// Cleans up the lobby.

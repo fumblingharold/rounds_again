@@ -119,7 +119,6 @@ pub fn setup_match(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     players: Query<&mut Transform, With<Player>>,
-    mut next_state: ResMut<NextState<AppState>>,
 ) {
     let map_file: MapFile = toml::from_str(
         &fs::read_to_string("./default_maps.toml").expect("Could not access default_maps.toml"),
@@ -138,8 +137,6 @@ pub fn setup_match(
     );
 
     move_players(players, &mut map.player_spawn_points);
-
-    next_state.set(AppState::Game);
 }
 
 fn move_players(
@@ -165,6 +162,7 @@ pub fn cleanup_match(
     walls: Query<Entity, With<Wall>>,
     phys_objects: Query<Entity, With<PhysObject>>,
     bullets: Query<Entity, With<Bullet>>,
+    players: Query<&mut Hp, With<Player>>,
 ) {
     for entity in walls
         .iter()
@@ -172,5 +170,8 @@ pub fn cleanup_match(
         .chain(bullets.iter())
     {
         commands.entity(entity).despawn();
+    }
+    for mut hp in players {
+        hp.reset();
     }
 }

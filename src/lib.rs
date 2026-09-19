@@ -26,11 +26,11 @@ mod game_state;
 mod lobby_state;
 mod pause_state;
 mod player;
+mod scoring;
 mod shared;
 
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
-
 /// Adds all the plugins and runs the app.
 pub fn run_app() {
     App::new()
@@ -41,9 +41,14 @@ pub fn run_app() {
         .add_plugins(game_state::GamePlugin)
         .add_plugins(pause_state::PausePlugin)
         .init_state::<AppState>()
+        .init_state::<MenuState>()
         .add_systems(Startup, (set_size_window, setup_camera))
         .run();
 }
+
+/// Whether or not the Menu is open. Pauses any running game.
+#[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, States)]
+struct MenuState(bool);
 
 /// The different states the app can be in.
 #[derive(Debug, Clone, Copy, Default, Eq, PartialEq, Hash, States)]
@@ -54,9 +59,7 @@ enum AppState {
     /// Lets players select cards.
     CardSelection,
     /// The actual game.
-    Game,
-    /// Game is paused.
-    Pause,
+    Match,
 }
 
 /// Sets the window size to 1920x1080. This seems to have trouble on Mac, but needs to be rewritten so it scales

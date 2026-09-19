@@ -1,10 +1,10 @@
 use super::{Bullet, setup_bullet};
 use crate::player::{
-    Abilities, AccumulatedInput, BulletSpeed, Counter, DamageTakenThisTick, HpBarGreen, Input,
-    LastHit, Player, PlayerId, Radius, SPEED,
+    Abilities, AccumulatedInput, BulletSpeed, Counter, DamageTakenThisTick, HpBarGreen, Input, LastHit, Living, Player, PlayerId, Radius, SPEED,
 };
+use crate::scoring::PartialPoints;
 use crate::shared::{Bounces, Damage, Hp, Source};
-use crate::{AppState, collision_groups};
+use crate::{MenuState, collision_groups};
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 use parry2d::shape::Cuboid;
@@ -23,7 +23,7 @@ pub fn update_input(
     window: Single<&Window, With<bevy::window::PrimaryWindow>>,
     camera: Single<(&Camera, &GlobalTransform)>,
     players: Query<(&mut AccumulatedInput, &Input, &Transform), With<Player>>,
-    mut next_state: ResMut<NextState<AppState>>,
+    mut next_state: ResMut<NextState<MenuState>>,
 ) {
     let (camera, camera_transform) = camera.into_inner();
     for (mut accumulated_input, input, transform) in players {
@@ -43,7 +43,7 @@ pub fn update_input(
                     accumulated_input.jump = true;
                 }
                 if keyboard_input.pressed(KeyCode::Escape) {
-                    next_state.set(AppState::Pause)
+                    next_state.set(MenuState(true))
                 }
                 if let Some(ray) = window
                     .cursor_position()
@@ -72,7 +72,7 @@ pub fn update_input(
                         accumulated_input.jump = true;
                     }
                     if gamepad.pressed(GamepadButton::Start) {
-                        next_state.set(AppState::Pause)
+                        next_state.set(MenuState(true))
                     }
 
                     // Need to detect digital and analog triggers
@@ -94,6 +94,7 @@ pub fn update_input(
                     }
                 }
             }
+            Input::Dummy => accumulated_input.shoot = Some(Vec2::Y),
         }
     }
 }
@@ -395,10 +396,29 @@ pub fn handle_player_damage(
 }
 
 /// Should make players with hp <= 0 disappear without despawning their entity.
-pub fn kill_players(mut commands: Commands, players: Query<(Entity, &Hp), With<Player>>) {
-    for (entity, hp) in players {
-        if hp.hp <= 0. {
+pub fn kill_players(
+    dying_players: Query<(&Hp, &LastHit, &mut Living), With<Player>>,
+    mut killing_players: Query<(&PlayerId, &mut PartialPoints), With<Player>>,
+) {
+    for (hp, last_hit, mut living) in dying_players {
+        if hp.hp <= 0. && living.0 {
             // TODO
+
+            // Mark the player as dead
+            living.0 = false;
+
+            // Add a partial point to the last player to do damage
+            killing_players
+                .iter_mut()
+                .find_map(|(&player_id, partial_points)| {
+                    if player_id == PlayerId(last_hit.0) {
+                        Some(partial_points)
+                    } else {
+                        None
+                    }
+                })
+                .into_iter()
+                .for_each(|mut partial_points| partial_points.increment());
         }
     }
 }
